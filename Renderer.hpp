@@ -24,9 +24,9 @@ namespace WM908_Assessment {
 		~Renderer();
 
 		void DrawCameraBackground(unsigned char r, unsigned char g, unsigned char b);
-		void DrawFromSpritesheetIDWorldPosition(const Vec2& worldPosition, const unsigned int gridID, const Vec2& offset, Direction facing = Direction::Down, bool flipH = false, bool flipV = false);
 		void DrawFromSpritesheetIDScreenPosition(const Vec2& screenPosition, const unsigned int gridID, const Vec2& offset, Direction facing = Direction::Down, bool flipH = false, bool flipV = false, bool insideCamera = false);
-		
+		void DrawFromSpritesheetIDWorldPosition(const Vec2& worldPosition, const unsigned int gridID, const Vec2& offset, Direction facing = Direction::Down, bool flipH = false, bool flipV = false);
+
 		void DrawString(const Vec2& screenPosition, const unsigned char* value);
 
 		bool IsScreenPositionWithinCamera(const Vec2& screenPosition) const;

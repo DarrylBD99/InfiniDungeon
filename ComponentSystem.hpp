@@ -76,23 +76,24 @@ namespace WM908_Assessment {
 
 	};
 
-	class s_Movement : public ComponentSystem<c_Movement> {
-	public:
-		void Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem);
-	};
-
 	class s_Collisions {
 	private:
 		ComponentSystem<c_CollisionBox> collisionBox;
 		ComponentSystem<c_CollisionCircle> collisionCircle;
 	public:
-		c_CollisionBox* AddCollisionBox(unsigned int entityID) {
+		bool showCollisions;
+
+		c_CollisionBox* AddCollisionBox(unsigned int entityID, Vec2 boxSize, bool isSolid = false) {
 			c_CollisionBox* component = collisionBox.AddComponent(entityID);
+			component->boxSize = boxSize;
+			component->isSolid = isSolid;
 			return component;
 		}
 
-		c_CollisionCircle* AddCollisionCircle(unsigned int entityID) {
+		c_CollisionCircle* AddCollisionCircle(unsigned int entityID, float radius, bool isSolid = false) {
 			c_CollisionCircle* component = collisionCircle.AddComponent(entityID);
+			component->radius = radius;
+			component->isSolid = isSolid;
 			return component;
 		}
 
@@ -109,10 +110,21 @@ namespace WM908_Assessment {
 			collisionCircle.DeleteComponent(entityID);
 		}
 
-		void DeleteComponents(unsigned int entityID[], unsigned int size) {
+		void DeleteCollisionComponents(unsigned int entityID[], unsigned int size) {
 			collisionBox.DeleteComponents(entityID, size);
 			collisionCircle.DeleteComponents(entityID, size);
 		}
+
+		void DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas);
+		
+		bool AABB(const Vec2& entityTopLeft, const Vec2& entityBottomRight, const Vec2& targetTopLeft, const Vec2& targetBottomRight) const;
+		bool IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool requireSolid) const;
+		bool CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool requireSolid = false) const;
+	};
+
+	class s_Movement : public ComponentSystem<c_Movement> {
+	public:
+		void Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem);
 	};
 
 	class s_Sprites {

@@ -13,6 +13,7 @@ namespace WM908_Assessment {
 		s_Position positions;
 		s_Movement movements;
 		s_4Direction directions_4;
+		s_Collisions collisions;
 		s_Sprites sprites;
 		s_Input inputs;
 

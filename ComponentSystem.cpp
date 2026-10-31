@@ -62,7 +62,103 @@ namespace WM908_Assessment {
 		}
 	}
 
-	void s_Movement::Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem) {
+	bool s_Collisions::AABB(const Vec2& entityTopLeft, const Vec2& entityBottomRight, const Vec2& targetTopLeft, const Vec2& targetBottomRight) const {
+		return (entityTopLeft.GetX() < targetBottomRight.GetX() && entityBottomRight.GetX() > targetTopLeft.GetX()
+			&& entityTopLeft.GetY() < targetBottomRight.GetY() && entityBottomRight.GetY() > targetTopLeft.GetY());
+	}
+
+	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool requireSolid) const {
+		if (requireSolid && !targetCollisionBox->isSolid) return false;
+
+		bool isColliding = false;
+
+		for (unsigned int i = 0; i < 2; i++) {
+			Vec2 entityTargetPosition = position;
+			
+			// Adds velocity into positions
+			if (i % 2 == 0) entityTargetPosition += Vec2{ velocity.GetX(), 0.0f }; // Check X Axis first, then Y axis
+			else entityTargetPosition += Vec2{ 0.0f, velocity.GetY() }; // (prevent kick back behaviour when hugging wall)
+
+			Vec2 entityTargetBottomRight = entityTargetPosition + collisionBox->boxSize;
+
+			Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
+
+			// Use Basic AABB to check collision between boxes
+			if (!AABB(entityTargetPosition, entityTargetBottomRight, targetPosition, targetBottomRight)) continue;
+			isColliding = true; // Toggles on if collision exists in either direction
+
+			if (i % 2 == 0) { // Set New Position X Axis
+				float newPositionX = position.GetX();
+
+				if (velocity.GetX() > 0) newPositionX = targetPosition.GetX() - collisionBox->boxSize.GetX();
+				else if (velocity.GetX() < 0) newPositionX = targetBottomRight.GetX();
+
+				// subtract velocity X based on collision on X Axis
+				velocity.SetX(newPositionX - position.GetX());
+			} else { // Set New Position Y Axis
+				float newPositionY = position.GetY();
+
+				if (velocity.GetY() > 0) newPositionY = targetPosition.GetY() - collisionBox->boxSize.GetY();
+				else if (velocity.GetY() < 0) newPositionY = targetBottomRight.GetY();
+
+				// subtract velocity Y based on collision on Y Axis
+				velocity.SetX(newPositionY - position.GetY());
+			}
+		}
+		
+		return isColliding;
+	}
+
+	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool requireSolid) const {
+		c_Position* position1 = positionSystem.GetComponent(entityID);
+		
+		if (position1 == nullptr) return false;
+
+		bool isColliding = false;
+
+		for (unsigned int otherEntityID = 0; otherEntityID < datasetSize; otherEntityID++) {
+			if (otherEntityID == entityID) continue;
+			c_Position* position2 = positionSystem.GetComponent(otherEntityID);
+
+			if (position2 == nullptr) continue;
+			c_CollisionBox* collisionBox1 = GetCollisionBox(entityID);
+			c_CollisionBox* collisionBox2 = GetCollisionBox(otherEntityID);
+
+			if (collisionBox1 != nullptr && collisionBox2 != nullptr) {
+				if (IsBoxColliding(collisionBox1, collisionBox2, position1->position, position2->position, velocity, requireSolid))
+					isColliding = true;
+			}
+		}
+
+		return isColliding;
+	}
+
+	void s_Collisions::DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) {
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			c_CollisionBox* collisionBox = GetCollisionBox(entityID);
+			if (collisionBox == nullptr) continue;
+
+			c_Position* position = positionSystem.GetComponent(entityID);
+			if (position == nullptr) continue;
+			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position);
+
+			for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
+				int pixelY = screenPosition.GetY() + y;
+				if (!renderer->IsScreenYWithinCamera(pixelY)) continue;
+
+				for (unsigned int x = 0; x < collisionBox->boxSize.GetX(); x++) {
+					if (x > 0 && x < (collisionBox->boxSize.GetX() - 1) && y > 0 && y < (collisionBox->boxSize.GetY() - 1)) continue;
+
+					int pixelX = screenPosition.GetX() + x;
+					if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
+
+					canvas.draw(pixelX, pixelY, ((collisionBox->isSolid) ? 255 : 0), 0, ((collisionBox->isSolid) ? 0 : 255));
+				}
+			}
+		}
+	}
+
+	void s_Movement::Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
 			c_Movement* movement = GetComponent(entityID);
 			if (movement == nullptr) continue;
@@ -70,7 +166,10 @@ namespace WM908_Assessment {
 			c_Position* position = positionSystem.GetComponent(entityID);
 			if (position == nullptr) continue;
 
-			position->position += movement->velocity * movement->speed * deltaTime;
+			Vec2 velocity = movement->velocity * movement->speed * deltaTime;
+			collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity, true);
+
+			position->position += velocity;
 		}
 	}
 

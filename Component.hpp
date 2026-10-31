@@ -50,13 +50,13 @@ namespace WM908_Assessment {
 	// Collision Components
 
 	struct c_CollisionBox {
-		Vec2 boxSize;
-		bool isSolid;
+		Vec2 boxSize = { 0, 0 };
+		bool isSolid = false;
 	};
 
 	struct c_CollisionCircle {
-		float radius;
-		bool isSolid;
+		float radius = 0;
+		bool isSolid = false;
 	};
 
 	// Graphical Components

@@ -124,16 +124,18 @@ namespace WM908_Assessment {
 			//std::cout << "]" << std::endl;
 		}
 
-		Entity* CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem) {
+		Entity* CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem) {
 			unsigned int entityID = entityManager.AppendEntity();
 			c_Position* position = positionSystem.AddComponent(entityID);
 			position->position = { worldPositionX, worldPositionY };
 			spriteSystem.AddSprite(entityID, tileID, 0);
 
+			if (tileID == 2) collisionSystem.AddCollisionBox(entityID, { (float)Renderer::GRID_SIZE }, true);
+
 			return entityManager.GetEntityData(entityID);
 		}
 
-		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem) {
+		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem) {
 			if (!IsMapVisible(renderer)) return;
 
 			Vec2 cameraTopLeft, cameraBottomRight;
@@ -150,7 +152,7 @@ namespace WM908_Assessment {
 					unsigned int idx = tileY * width + tileX;
 					if (tileEntities->Get(idx) != nullptr) continue;
 
-					Entity* entity = CreateTileEntity(tileIDs[tileY][tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem);
+					Entity* entity = CreateTileEntity(tileIDs[tileY][tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem);
 					tileEntities->SetValue(entity, idx);
 				}
 			}
@@ -194,15 +196,15 @@ namespace WM908_Assessment {
 			currentRoom->AddTilesToUnload(renderer, positionSystem, unloadedEntities, unloadEntityCount);
 		}
 
-		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem) {
+		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem) {
 			Vec2 cameraTopLeft, cameraBottomRight;
 			renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 			
-			currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem);
-			if (currentRoom->bottomRoom != nullptr) currentRoom->bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem);
-			if (currentRoom->rightRoom != nullptr) currentRoom->rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem);
-			if (currentRoom->leftRoom != nullptr) currentRoom->leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem);
-			if (currentRoom->topRoom != nullptr) currentRoom->topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem);
+			currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
+			if (currentRoom->bottomRoom != nullptr) currentRoom->bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
+			if (currentRoom->rightRoom != nullptr) currentRoom->rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
+			if (currentRoom->leftRoom != nullptr) currentRoom->leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
+			if (currentRoom->topRoom != nullptr) currentRoom->topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
 		}
 	};
 }

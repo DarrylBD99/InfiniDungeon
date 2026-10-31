@@ -8,6 +8,8 @@ namespace WM908_Assessment {
 		c_Movement* movement = movements.AddComponent(entityID);
 		movement->speed = 150.0f;
 
+		collisions.AddCollisionBox(entityID, Vec2{ (float)Renderer::GRID_SIZE }, false);
+
 		// Add Layered AnimatedSprite Component
 		c_LayeredAnimatedSprite* layeredAnimatedSprite = sprites.AddLayeredAnimatedSprite(entityID, 1);
 
@@ -145,6 +147,7 @@ namespace WM908_Assessment {
 		directions_4.DeleteComponents(entitiesToUnload, unloadEntityCount);
 		sprites.DeleteSpriteComponents(entitiesToUnload, unloadEntityCount);
 		inputs.DeleteComponents(entitiesToUnload, unloadEntityCount);
+		collisions.DeleteCollisionComponents(entitiesToUnload, unloadEntityCount);
 
 		delete[] entitiesToUnload;
 	}
@@ -156,7 +159,7 @@ namespace WM908_Assessment {
 		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
 		UnloadEntities(entitiesToUnload, unloadEntityCount);
 
-		mapGenerator->CreateVisibleTiles(renderer, entity, positions, sprites);
+		mapGenerator->CreateVisibleTiles(renderer, entity, positions, sprites, collisions);
 
 		unsigned int datasetSize = entity.GetDatasetSize();
 
@@ -168,9 +171,10 @@ namespace WM908_Assessment {
 		sprites.Update(datasetSize, deltaTime, renderer);
 
 		inputs.Update(datasetSize, window, movements);
-		movements.Update(datasetSize, deltaTime, positions);
+		movements.Update(datasetSize, deltaTime, positions, collisions);
 
 		sprites.Draw(datasetSize, positions, renderer);
+		collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
 
 		UpdateCameraPosition();
 		

@@ -10,11 +10,11 @@ float Vec2::GetY() const {
 }
 
 void Vec2::SetX(float value) {
-	x += value;
+	x = value;
 }
 
 void Vec2::SetY(float value) {
-	y += value;
+	y = value;
 }
 
 float Vec2::GetAngle() const {
