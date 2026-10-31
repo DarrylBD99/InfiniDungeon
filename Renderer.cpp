@@ -51,6 +51,7 @@ namespace WM908_Assessment {
 
 				unsigned int pixelX = 0, pixelY = 0;
 
+				// Rotates sprite based on facing direction
 				switch (facing)
 				{
 				case Direction::Down: {
@@ -78,6 +79,7 @@ namespace WM908_Assessment {
 				}
 				}
 
+				// flips sprite based on flipH and flipV
 				if (flipH) pixelX = (GRID_SIZE - 1) - pixelX;
 				if (flipV) pixelY = (GRID_SIZE - 1) - pixelY;
 
@@ -152,29 +154,36 @@ namespace WM908_Assessment {
 		//}
 	}
 
+	//The first character in the spritesheet is '!', which corresponds to gridID 144. Each character is 18 pixels wide and 32 pixels tall, with a 2-pixel gap between characters. The space character (' ') is represented by an empty space of 8 pixels wide.
 	void Renderer::DrawString(const Vec2& screenPosition, const unsigned char* string) {
 		unsigned int screenOffsetX = 0;
 		unsigned int screenOffsetY = 0;
 		
+		// Loops until there is no character in string (null terminator '\0' is reached)
 		for (int i = 0; string[i] != '\0'; ++i) {
 			char character = string[i];
 
+			// Resets Offset X and increases Offset Y by GRID_SIZE when making a new line
 			if (character == '\n') {
 				screenOffsetX = 0;
 				screenOffsetY += GRID_SIZE;
 				continue;
 			}
 
+			// Increases Offset X by 8 when a space is entered
 			if (character == ' ') {
 				screenOffsetX += 8;
 				continue;
 			}
 
-			// only accepts characters within ASCII range of 33 to 126
+			// Characters are stored in ASCII order in the spritesheet, from '!' (ASCII 33) to '~' (ASCII 126).
+			// Therefore, able to calculate spritesheetID just by subtracting '!' and adding 144 (the spritesheetID of '!').
 			if (character < '!' || character > '~') continue;
 			
-			unsigned int charIdx = 144 + (character  - '!');
-			DrawFromSpritesheetIDScreenPosition(screenPosition, charIdx, { (float)screenOffsetX, (float)screenOffsetY });
+			unsigned int spritesheetID = 144 + (character  - '!');
+			DrawFromSpritesheetIDScreenPosition(screenPosition, spritesheetID, { (float)screenOffsetX, (float)screenOffsetY });
+			
+			// Increase Offset X to move to next character position.
 			screenOffsetX += 18;
 		}
 	}
@@ -193,11 +202,11 @@ namespace WM908_Assessment {
 	}
 
 	int Renderer::ConvertWorldToScreenX(const int worldPositionX) const {
-		return worldPositionX - (int)cameraWorldPosition.GetX() + (cameraWidth / 2);
+		return worldPositionX - (int)cameraWorldPosition.GetX() + (cameraWidth / 2) + cameraBorderWidth;
 	}
 
 	int Renderer::ConvertWorldToScreenY(const int worldPositionY) const {
-		return worldPositionY - (int)cameraWorldPosition.GetY() + (cameraHeight / 2);
+		return worldPositionY - (int)cameraWorldPosition.GetY() + (cameraHeight / 2) + cameraBorderWidth;
 	}
 
 	bool Renderer::IsScreenPositionWithinCamera(const Vec2& screenPosition) const {

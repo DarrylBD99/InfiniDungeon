@@ -109,19 +109,19 @@ namespace WM908_Assessment {
 				unloadEntityCount++;
 			}
 			// temporary print for testing purposes
-			for (unsigned int idx = 0; idx < height * width; idx++) {
-				if (idx == 0) std::cout << "[";
-				else if (idx % width == 0) std::cout << std::endl;
-				Entity* entity = tileEntities->Get(idx);
-				
-				if (entity == nullptr) {
-					std::cout << "-1, ";
-				} else {
-					std::cout << entity->GetEntityID() << ", ";
-				}
+			//for (unsigned int idx = 0; idx < height * width; idx++) {
+			//	if (idx == 0) std::cout << "[";
+			//	else if (idx % width == 0) std::cout << std::endl;
+			//	Entity* entity = tileEntities->Get(idx);
+			//	
+			//	if (entity == nullptr) {
+			//		std::cout << "-1, ";
+			//	} else {
+			//		std::cout << entity->GetEntityID() << ", ";
+			//	}
 
-			}
-			std::cout << "]" << std::endl;
+			//}
+			//std::cout << "]" << std::endl;
 		}
 
 		Entity* CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem) {
