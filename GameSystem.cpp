@@ -174,7 +174,7 @@ namespace WM908_Assessment {
 		movements.Update(datasetSize, deltaTime, positions, collisions);
 
 		sprites.Draw(datasetSize, positions, renderer);
-		collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
+		//collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
 
 		UpdateCameraPosition();
 		

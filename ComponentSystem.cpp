@@ -62,6 +62,31 @@ namespace WM908_Assessment {
 		}
 	}
 
+	void s_Collisions::DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) {
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			c_CollisionBox* collisionBox = GetCollisionBox(entityID);
+			if (collisionBox == nullptr) continue;
+
+			c_Position* position = positionSystem.GetComponent(entityID);
+			if (position == nullptr) continue;
+			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position);
+
+			for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
+				int pixelY = screenPosition.GetY() + y;
+				if (!renderer->IsScreenYWithinCamera(pixelY)) continue;
+
+				for (unsigned int x = 0; x < collisionBox->boxSize.GetX(); x++) {
+					if (x > 0 && x < (collisionBox->boxSize.GetX() - 1) && y > 0 && y < (collisionBox->boxSize.GetY() - 1)) continue;
+
+					int pixelX = screenPosition.GetX() + x;
+					if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
+
+					canvas.draw(pixelX, pixelY, ((collisionBox->isSolid) ? 255 : 0), 0, ((collisionBox->isSolid) ? 0 : 255));
+				}
+			}
+		}
+	}
+
 	bool s_Collisions::AABB(const Vec2& entityTopLeft, const Vec2& entityBottomRight, const Vec2& targetTopLeft, const Vec2& targetBottomRight) const {
 		return (entityTopLeft.GetX() < targetBottomRight.GetX() && entityBottomRight.GetX() > targetTopLeft.GetX()
 			&& entityTopLeft.GetY() < targetBottomRight.GetY() && entityBottomRight.GetY() > targetTopLeft.GetY());
@@ -102,7 +127,7 @@ namespace WM908_Assessment {
 				else if (velocity.GetY() < 0) newPositionY = targetBottomRight.GetY();
 
 				// subtract velocity Y based on collision on Y Axis
-				velocity.SetX(newPositionY - position.GetY());
+				velocity.SetY(newPositionY - position.GetY());
 			}
 		}
 		
@@ -131,31 +156,6 @@ namespace WM908_Assessment {
 		}
 
 		return isColliding;
-	}
-
-	void s_Collisions::DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_CollisionBox* collisionBox = GetCollisionBox(entityID);
-			if (collisionBox == nullptr) continue;
-
-			c_Position* position = positionSystem.GetComponent(entityID);
-			if (position == nullptr) continue;
-			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position);
-
-			for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
-				int pixelY = screenPosition.GetY() + y;
-				if (!renderer->IsScreenYWithinCamera(pixelY)) continue;
-
-				for (unsigned int x = 0; x < collisionBox->boxSize.GetX(); x++) {
-					if (x > 0 && x < (collisionBox->boxSize.GetX() - 1) && y > 0 && y < (collisionBox->boxSize.GetY() - 1)) continue;
-
-					int pixelX = screenPosition.GetX() + x;
-					if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
-
-					canvas.draw(pixelX, pixelY, ((collisionBox->isSolid) ? 255 : 0), 0, ((collisionBox->isSolid) ? 0 : 255));
-				}
-			}
-		}
 	}
 
 	void s_Movement::Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem) {
