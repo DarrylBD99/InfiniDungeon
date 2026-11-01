@@ -76,8 +76,8 @@ namespace WM908_Assessment {
 			renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 
 			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position);
-			return IsTileXVisible(cameraTopLeft, cameraBottomRight, screenPosition.GetX())
-				&& IsTileYVisible(cameraTopLeft, cameraBottomRight, screenPosition.GetY());
+			return IsTileXVisible(cameraTopLeft, cameraBottomRight, (int)screenPosition.GetX())
+				&& IsTileYVisible(cameraTopLeft, cameraBottomRight, (int)screenPosition.GetY());
 		}
 
 		bool IsTileXVisible(const Vec2& cameraTopLeft, const Vec2& cameraBottomRight, const int screenPositionX) {
@@ -124,35 +124,77 @@ namespace WM908_Assessment {
 			//std::cout << "]" << std::endl;
 		}
 
-		Entity* CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem) {
+		Entity* CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
+			if (tileID > 14) return nullptr; // There exists only 15 types of map tiles
+			
 			unsigned int entityID = entityManager.AppendEntity();
-			c_Position* position = positionSystem.AddComponent(entityID);
-			position->position = { worldPositionX, worldPositionY };
-			spriteSystem.AddSprite(entityID, tileID, 0);
+			Entity* entity = entityManager.GetEntityData(entityID);
 
-			if (tileID == 2) collisionSystem.AddCollisionBox(entityID, { (float)Renderer::GRID_SIZE }, true);
+			positionSystem.AddComponent(entityID, { worldPositionX, worldPositionY });
+			
+			c_Sprite* sprite = spriteSystem.AddSprite(entityID, tileID, 0);
 
-			return entityManager.GetEntityData(entityID);
+			// Add new properties for tiles that are walls or have external properties
+			if (tileID < 2) return entity;
+			
+			// Create Collision for all tiles that aren't floor
+			c_CollisionBox* collisionBox = collisionSystem.AddCollisionBox(entityID, { (float)Renderer::GRID_SIZE }, { 0.0f }, CollisionLayer::Wall);
+
+			// Only continue if tile has extrenal behaviour that needs to be defined
+			if (tileID == 2) return entity;
+
+			// Add active state component to chests, pressure pads, and traps
+			// They are placed in sequential order in spritesheetID for seamless implementation
+			if (tileID >= 3 && tileID <= 6) {
+				triggerSystem.AddActiveState(entityID, tileID + 12);
+
+				// Individual interactable properties
+				switch (tileID)
+				{
+				// Pressure Pads
+				case 3: 
+					// Reduce hitbox size
+					collisionBox->boxSize = { 24.0f, 14.0f }; 
+					collisionBox->offset = { 4.0f, 9.0f };
+					break;
+				default:
+					break;
+				}
+			}
+				
+			// Set Sprite Layer of spawners and collectibles to 1 and add another tile entity below
+			// Spawners are given a tile below as they have health and can be destroyed by player
+			else if (tileID >= 8 || tileID <= 13) {
+				sprite->drawLayer = 1;
+				unsigned int floorEntityID = entityManager.AppendEntity();
+				positionSystem.AddComponent(floorEntityID, { worldPositionX, worldPositionY });
+				spriteSystem.AddSprite(floorEntityID, tileID, 0);
+			}
+
+				
+			
+			
+			return entity;
 		}
 
-		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem) {
+		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
 			if (!IsMapVisible(renderer)) return;
 
 			Vec2 cameraTopLeft, cameraBottomRight;
 			renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 
 			for (unsigned int tileY = 0; tileY < height; tileY++) {
-				unsigned int worldPositionY = (tileY * Renderer::GRID_SIZE) + worldPos.GetY();
+				unsigned int worldPositionY = (tileY * Renderer::GRID_SIZE) + (unsigned int)worldPos.GetY();
 				if (!IsTileYVisible(cameraTopLeft, cameraBottomRight, renderer->ConvertWorldToScreenY(worldPositionY))) continue;
 
 				for (unsigned int tileX = 0; tileX < width; tileX++) {
-					unsigned int worldPositionX = (tileX * Renderer::GRID_SIZE) + worldPos.GetX();
+					unsigned int worldPositionX = (tileX * Renderer::GRID_SIZE) + (unsigned int)worldPos.GetX();
 					if (!IsTileXVisible(cameraTopLeft, cameraBottomRight, renderer->ConvertWorldToScreenX(worldPositionX))) continue;
 
 					unsigned int idx = tileY * width + tileX;
 					if (tileEntities->Get(idx) != nullptr) continue;
 
-					Entity* entity = CreateTileEntity(tileIDs[tileY][tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem);
+					Entity* entity = CreateTileEntity(tileIDs[tileY][tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 					tileEntities->SetValue(entity, idx);
 				}
 			}
@@ -196,15 +238,15 @@ namespace WM908_Assessment {
 			currentRoom->AddTilesToUnload(renderer, positionSystem, unloadedEntities, unloadEntityCount);
 		}
 
-		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem) {
+		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
 			Vec2 cameraTopLeft, cameraBottomRight;
 			renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 			
-			currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
-			if (currentRoom->bottomRoom != nullptr) currentRoom->bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
-			if (currentRoom->rightRoom != nullptr) currentRoom->rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
-			if (currentRoom->leftRoom != nullptr) currentRoom->leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
-			if (currentRoom->topRoom != nullptr) currentRoom->topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem);
+			currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (currentRoom->bottomRoom != nullptr) currentRoom->bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (currentRoom->rightRoom != nullptr) currentRoom->rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (currentRoom->leftRoom != nullptr) currentRoom->leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (currentRoom->topRoom != nullptr) currentRoom->topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 		}
 	};
 }

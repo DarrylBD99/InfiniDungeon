@@ -6,7 +6,7 @@ private:
 public:
 	Vec2() : x(0), y(0) {}
 	Vec2(float value) : x(value), y(value) {}
-	Vec2(int value) : x(value), y(value) {}
+	Vec2(int value) : x((float)value), y((float)value) {}
 	Vec2(float x_, float y_) : x(x_), y(y_) {}
 	Vec2(int x_, int y_) : x((float)x_), y((float)y_) {}
 	~Vec2() = default;

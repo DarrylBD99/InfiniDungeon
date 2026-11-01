@@ -1,14 +1,17 @@
 #include "GameSystem.hpp"
 
 namespace WM908_Assessment {
-	unsigned int GameSystem::CreatePlayerEntityBase(PlayerCLass playerClass) {
+	unsigned int GameSystem::CreatePlayerEntityBase(PlayerClass playerClass) {
 		unsigned int entityID = entity.AppendEntity();
 		directions_4.AddComponent(entityID);
 
 		c_Movement* movement = movements.AddComponent(entityID);
 		movement->speed = 150.0f;
 
-		collisions.AddCollisionBox(entityID, Vec2{ (float)Renderer::GRID_SIZE }, false);
+		collisions.AddCollisionBox(entityID, Vec2{ 20.0f, 32.0f }, Vec2{ 6.0f, 0.0f }, CollisionLayer::Player, CollisionLayer::Wall);
+		entityData.AddHealth(entityID, 100);
+		entityData.AddMana(entityID, 50);
+		entityData.AddSavable(entityID);
 
 		// Add Layered AnimatedSprite Component
 		c_LayeredAnimatedSprite* layeredAnimatedSprite = sprites.AddLayeredAnimatedSprite(entityID, 1);
@@ -20,13 +23,13 @@ namespace WM908_Assessment {
 		unsigned int baseFrame = 18;
 		switch (playerClass)
 		{
-		case PlayerCLass::Miner:
+		case PlayerClass::Miner:
 			baseFrame = 36;
 			break;
-		case PlayerCLass::Archer:
+		case PlayerClass::Archer:
 			baseFrame = 72;
 			break;
-		case PlayerCLass::Mage:
+		case PlayerClass::Mage:
 			baseFrame = 108;
 			break;
 		default:
@@ -82,12 +85,11 @@ namespace WM908_Assessment {
 		return entityID;
 	}
 
-	void GameSystem::CreatePlayer1(PlayerCLass playerClass) {
+	void GameSystem::CreatePlayer1(PlayerClass playerClass) {
 		const unsigned int entityID = CreatePlayerEntityBase(playerClass);
-		c_Position* position = positions.AddComponent(entityID);
-		position->position = startMapPos_1 * renderer->GRID_SIZE;
+		c_Position* position = positions.AddComponent(entityID, startMapPos_1 * renderer->GRID_SIZE);
 
-		c_Input* input = inputs.AddComponent(entityID);
+		c_PlayerInput* input = inputs.AddComponent(entityID);
 		input->keyDown = 'S';
 		input->keyRight = 'D';
 		input->keyLeft = 'A';
@@ -99,12 +101,11 @@ namespace WM908_Assessment {
 		playerEntity[0] = entityID;
 	}
 
-	void GameSystem::CreatePlayer2(PlayerCLass playerClass) {
+	void GameSystem::CreatePlayer2(PlayerClass playerClass) {
 		const unsigned int entityID = CreatePlayerEntityBase(playerClass);
-		c_Position* position = positions.AddComponent(entityID);
-		position->position = startMapPos_2 * renderer->GRID_SIZE;
+		c_Position* position = positions.AddComponent(entityID, startMapPos_2 * renderer->GRID_SIZE);
 
-		c_Input* input = inputs.AddComponent(entityID);
+		c_PlayerInput* input = inputs.AddComponent(entityID);
 		input->keyDown = 'K';
 		input->keyRight = 'L';
 		input->keyLeft = 'J';
@@ -116,9 +117,33 @@ namespace WM908_Assessment {
 		playerEntity[1] = entityID;
 	}
 
-	float GameSystem::GetFPS(int frameCount, float deltaTime) {
-		if (deltaTime == 0) return 0; // Prevent zero-division
-		return (float)frameCount / deltaTime;
+	void GameSystem::CreateNewPlayerEntities(const PlayerClass playerClass[]) {
+		CreatePlayer1(playerClass[0]);
+
+		if (numberOfPlayers > 1) {
+			CreatePlayer2(playerClass[1]);
+		}
+	}
+
+	// Display Player(s) Data
+	void GameSystem::DisplayPlayerData() {
+		std::string stringOutput;
+
+		for (unsigned int i = 0; i < numberOfPlayers; i++) {
+			if (i % numberOfPlayers > 0) stringOutput += "\n\n";
+
+			unsigned int entityID = playerEntity[i];
+			c_Health* health = entityData.GetHealth(entityID);
+			c_Mana* mana = entityData.GetMana(entityID);
+
+			stringOutput += "Player " + std::to_string(i + 1)
+						  + "\nHealth:" + std::to_string(health->current)
+						  + "/" + std::to_string(health->max)
+						  + "\nMana:" + std::to_string(mana->current)
+						  + "/" + std::to_string(mana->max);
+		}
+
+		renderer->DrawString({ cameraBounds.GetX(), 12.0f }, (unsigned char*)stringOutput.c_str());
 	}
 
 	void GameSystem::UpdateCameraPosition() {
@@ -152,14 +177,42 @@ namespace WM908_Assessment {
 		delete[] entitiesToUnload;
 	}
 
+	float GameSystem::GetFPS(int frameCount, float deltaTime) {
+		if (deltaTime == 0) return 0; // Prevent zero-division
+		return (float)frameCount / deltaTime;
+	}
+
+	void GameSystem::DisplayFPS(float deltaTime) {
+		frameCount++;
+		elapsed += deltaTime;
+		if (elapsed >= 0.1f) {
+			currentFPS = (int)GetFPS(frameCount, elapsed);
+			frameCount = 0;
+			elapsed = 0.0f;
+		}
+
+		std::string fpsString = "FPS: " + std::to_string(currentFPS);
+		renderer->DrawString({ cameraBounds.GetX(), cameraBounds.GetY() - 32 }, (unsigned char*)fpsString.c_str());
+	}
+
 	void GameSystem::Update(float deltaTime) {
+		// Debug features
+		if (debugKeyPressedCounter >= debugKeyBuffer) {
+			// F9: Show Collision Boxes
+			if (window.keyPressed(VK_F9)) {
+				showCollisionBoxes = !showCollisionBoxes;
+				debugKeyPressedCounter = 0.0f;
+			}
+		} else {
+			debugKeyPressedCounter += deltaTime;
+		}
 
 		unsigned int* entitiesToUnload = new unsigned int[entity.GetDatasetSize()];
 		unsigned int unloadEntityCount = 0;
 		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
 		UnloadEntities(entitiesToUnload, unloadEntityCount);
 
-		mapGenerator->CreateVisibleTiles(renderer, entity, positions, sprites, collisions);
+		mapGenerator->CreateVisibleTiles(renderer, entity, positions, sprites, collisions, entityData, triggers);
 
 		unsigned int datasetSize = entity.GetDatasetSize();
 
@@ -167,48 +220,33 @@ namespace WM908_Assessment {
 
 		directions_4.Update(datasetSize, movements, sprites);
 
-
 		sprites.Update(datasetSize, deltaTime, renderer);
 
-		inputs.Update(datasetSize, window, movements);
+		inputs.Update(datasetSize, window, movements, sprites);
 		movements.Update(datasetSize, deltaTime, positions, collisions);
 
 		sprites.Draw(datasetSize, positions, renderer);
-		//collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
+
+		if (showCollisionBoxes) collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
 
 		UpdateCameraPosition();
 		
-		// Get and Display FPS
-		frameCount++;
-		elapsed += deltaTime;
-		if (elapsed >= 0.1f) {
-			currentFPS = roundf(GetFPS(frameCount, elapsed));
-			frameCount = 0;
-			elapsed = 0.0f;
-		}
+		DisplayFPS(deltaTime);
+		DisplayPlayerData();
+	}
 
-		std::string fpsString = "FPS: " + std::to_string(currentFPS);
-		renderer->DrawString({ cameraBounds.GetX(), cameraBounds.GetY() - 32 }, (unsigned char*)fpsString.c_str());
-		
-		// Display Player(s) Data
-		renderer->DrawString({ cameraBounds.GetX(), 12.0f }, (unsigned char*)"Player 1\nHealth:50/50\nMana:50/50\n\nPlayer 2\nHealth:50/50\nMana:50/50");
+	void GameSystem::LoadDemoWorld(const PlayerClass playerClass[]) {
+		CreateNewPlayerEntities(playerClass);
+		mapGenerator->GenerateDemoRoom();
 	}
 
 	GameSystem::GameSystem(GamesEngineeringBase::Window& window_, bool hasPlayer2) : window(window_) {
-		renderer = new Renderer(window);
 		cameraBounds = renderer->GetCameraBounds();
+		if (hasPlayer2) numberOfPlayers = 2;
 
-		mapGenerator = new MapGenerator();
+		// Start new game (Temporary)
+		PlayerClass playerClasses[2] = { PlayerClass::Miner, PlayerClass::Mage };
 
-		// Temporary (Initialize Player Class)
-		CreatePlayer1(PlayerCLass::Miner);
-
-		if (hasPlayer2) {
-			CreatePlayer2(PlayerCLass::Archer);
-			numberOfPlayers++;
-		}
-
-		// Temporary (Create Basic Map)
-		mapGenerator->GenerateDemoRoom();
+		LoadDemoWorld(playerClasses);
 	}
 }

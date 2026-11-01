@@ -12,7 +12,7 @@ namespace WM908_Assessment {
 		Up = 3
 	};
 
-	enum PlayerCLass {
+	enum PlayerClass {
 		Miner = 0,
 		Archer = 1,
 		Mage = 2
@@ -30,7 +30,7 @@ namespace WM908_Assessment {
 
 	// Interaction Components
 
-	struct c_Input {
+	struct c_PlayerInput {
 		int keyUp, keyDown, keyLeft, keyRight, primaryAttack, secondaryAttack;
 	};
 
@@ -39,6 +39,7 @@ namespace WM908_Assessment {
 	};
 
 	// Data Components
+
 	struct c_Health {
 		unsigned int current, max;
 	};
@@ -47,17 +48,83 @@ namespace WM908_Assessment {
 		unsigned int current, max;
 	};
 
+	enum CollectableType {
+		Key = 0,
+		Health = 1,
+		Mana = 2
+	};
+
+	struct c_Collectible {
+		bool isCollected = false;
+
+		std::string itemID = "";
+	};
+
+	struct c_Savable {
+
+	};
+
+	// Damage Types
+	
+	struct c_Melee {
+		unsigned int* entitiesToIgnore = nullptr;
+		unsigned int entitiesToIgnoreCount = 0;
+	};
+
+	struct c_Projectile {
+		unsigned int* entitiesToIgnore = nullptr;
+		unsigned int entitiesToIgnoreCount = 0;
+
+		unsigned int spritesheetID = 0;
+		Vec2 collisionBoxSize = {};
+		Vec2 collisionBoxOffset = {};
+		bool followNearestEnemy = false;
+	};
+
+	// Triggers
+	struct c_ActiveState {
+		bool isActive = true;
+
+		unsigned int deactiveState = 0;
+	};
+
+	struct c_PressTrigger {
+		unsigned int* affectedEntity;
+	};
+
+	struct c_InteractTrigger {
+		unsigned int* affectedEntity;
+	};
+
+	struct c_DeathTrigger {
+		unsigned int* affectedEntity;
+	};
+
+	struct c_LinkTrigger {
+		unsigned int* affectedEntity;
+	};
+
 	// Collision Components
 
-	struct c_CollisionBox {
-		Vec2 boxSize = { 0, 0 };
-		bool isSolid = false;
+	// Use Bitwise if box can interact with multiple layers
+	enum CollisionLayer {
+		Wall = 1 << 0,
+		Player = 1 << 1,
+		Enemy = 1 << 2,
+		Projectile = 1 << 3
 	};
 
-	struct c_CollisionCircle {
-		float radius = 0;
-		bool isSolid = false;
+	struct c_CollisionBox {
+		unsigned int collisionLayer = 0;
+		unsigned int collisionMask = 0;
+
+		Vec2 boxSize = { 0, 0 };
+		Vec2 offset = { 0, 0 };
 	};
+
+	//struct c_CollisionCircle {
+	//	float radius = 0;
+	//};
 
 	// Graphical Components
 	

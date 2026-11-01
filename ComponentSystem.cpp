@@ -1,5 +1,5 @@
 #include "ComponentSystem.hpp"
-
+#include <iostream>
 namespace WM908_Assessment {
 
 	// EntityManager Class
@@ -62,14 +62,14 @@ namespace WM908_Assessment {
 		}
 	}
 
-	void s_Collisions::DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) {
+	void s_Collisions::DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) const {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
 			c_CollisionBox* collisionBox = GetCollisionBox(entityID);
 			if (collisionBox == nullptr) continue;
 
 			c_Position* position = positionSystem.GetComponent(entityID);
 			if (position == nullptr) continue;
-			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position);
+			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position + collisionBox->offset);
 
 			for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
 				int pixelY = screenPosition.GetY() + y;
@@ -81,10 +81,14 @@ namespace WM908_Assessment {
 					int pixelX = screenPosition.GetX() + x;
 					if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
 
-					canvas.draw(pixelX, pixelY, ((collisionBox->isSolid) ? 255 : 0), 0, ((collisionBox->isSolid) ? 0 : 255));
+					canvas.draw(pixelX, pixelY, 255, 0, 0);
 				}
 			}
 		}
+	}
+
+	bool s_Collisions::CanCollide(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox) const {
+		return collisionBox->collisionMask & targetCollisionBox->collisionLayer;
 	}
 
 	bool s_Collisions::AABB(const Vec2& entityTopLeft, const Vec2& entityBottomRight, const Vec2& targetTopLeft, const Vec2& targetBottomRight) const {
@@ -92,16 +96,14 @@ namespace WM908_Assessment {
 			&& entityTopLeft.GetY() < targetBottomRight.GetY() && entityBottomRight.GetY() > targetTopLeft.GetY());
 	}
 
-	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool requireSolid) const {
-		if (requireSolid && !targetCollisionBox->isSolid) return false;
-
+	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity) const {
 		bool isColliding = false;
 
 		for (unsigned int i = 0; i < 2; i++) {
 			Vec2 entityTargetPosition = position;
 			
 			// Adds velocity into positions
-			if (i % 2 == 0) entityTargetPosition += Vec2{ velocity.GetX(), 0.0f }; // Check X Axis first, then Y axis
+			if (i == 0) entityTargetPosition += Vec2{ velocity.GetX(), 0.0f }; // Check X Axis first, then Y axis
 			else entityTargetPosition += Vec2{ 0.0f, velocity.GetY() }; // (prevent kick back behaviour when hugging wall)
 
 			Vec2 entityTargetBottomRight = entityTargetPosition + collisionBox->boxSize;
@@ -134,7 +136,7 @@ namespace WM908_Assessment {
 		return isColliding;
 	}
 
-	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool requireSolid) const {
+	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity) const {
 		c_Position* position1 = positionSystem.GetComponent(entityID);
 		
 		if (position1 == nullptr) return false;
@@ -149,10 +151,10 @@ namespace WM908_Assessment {
 			c_CollisionBox* collisionBox1 = GetCollisionBox(entityID);
 			c_CollisionBox* collisionBox2 = GetCollisionBox(otherEntityID);
 
-			if (collisionBox1 != nullptr && collisionBox2 != nullptr) {
-				if (IsBoxColliding(collisionBox1, collisionBox2, position1->position, position2->position, velocity, requireSolid))
-					isColliding = true;
-			}
+			if (collisionBox1 == nullptr || collisionBox2 == nullptr || !CanCollide(collisionBox1, collisionBox2)) continue;
+			
+			if (!IsBoxColliding(collisionBox1, collisionBox2, (position1->position + collisionBox1->offset), (position2->position + collisionBox2->offset), velocity)) continue;
+			isColliding = true;
 		}
 
 		return isColliding;
@@ -167,7 +169,7 @@ namespace WM908_Assessment {
 			if (position == nullptr) continue;
 
 			Vec2 velocity = movement->velocity * movement->speed * deltaTime;
-			collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity, true);
+			collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity);
 
 			position->position += velocity;
 		}
@@ -353,10 +355,28 @@ namespace WM908_Assessment {
 		}
 	}
 
-	void s_Input::Update(unsigned int datasetSize, GamesEngineeringBase::Window& window, s_Movement& movementSystem) {
+	void s_Triggers::DeactivateState(const unsigned int entityID, s_Sprites& spriteSystem) {
+		c_ActiveState* activeState = GetActiveState(entityID);
+		if (activeState == nullptr) return;
+		activeState->isActive = false;
+
+		c_Sprite* sprite = spriteSystem.GetSprite(entityID);
+		if (sprite == nullptr) return;
+		sprite->spritesheetID = activeState->deactiveState;
+	}
+
+	void s_PlayerInput::Update(unsigned int datasetSize, GamesEngineeringBase::Window& window, s_Movement& movementSystem, s_Sprites& spriteSystem) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_Input* input = GetComponent(entityID);
+			c_PlayerInput* input = GetComponent(entityID);
 			if (input == nullptr) continue;
+
+			if (window.keyPressed(input->primaryAttack)) {
+				c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
+				c_AnimatedSprite* topLayer = layeredAnimatedSprite->layers[layeredAnimatedSprite->numberOfLayers - 1];
+				unsigned int direction = topLayer->currentAnimation % 4;
+
+				spriteSystem.PlayAnimation(topLayer, 2 * 4 + direction);
+			}
 
 			c_Movement* movement = movementSystem.GetComponent(entityID);
 			if (movement == nullptr) continue;
