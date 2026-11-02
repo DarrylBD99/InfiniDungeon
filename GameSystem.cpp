@@ -271,6 +271,18 @@ namespace WM908_Assessment {
 		renderer->DrawString({ cameraBounds.GetX(), cameraBounds.GetY() - 32 }, (unsigned char*)fpsString.c_str());
 	}
 
+	// Unload Entities
+	void GameSystem::Unload() {
+		unsigned int datasetSize = entity.GetDatasetSize();
+		unsigned int* entitiesToUnload = new unsigned int[datasetSize];
+		unsigned int unloadEntityCount = 0;
+		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
+		attacks.DeleteAttackInstance(datasetSize, entitiesToUnload, unloadEntityCount, renderer, positions, movements, collisions);
+		entityData.DeleteCollectables(datasetSize, entitiesToUnload, unloadEntityCount, renderer, positions);
+
+		UnloadEntities(entitiesToUnload, unloadEntityCount);
+	}
+
 	void GameSystem::Update(float deltaTime) {
 		// Debug features
 		if (debugKeyPressedCounter >= debugKeyBuffer) {
@@ -282,14 +294,6 @@ namespace WM908_Assessment {
 		} else {
 			debugKeyPressedCounter += deltaTime;
 		}
-
-		// Unload Entities
-		unsigned int* entitiesToUnload = new unsigned int[entity.GetDatasetSize()];
-		unsigned int unloadEntityCount = 0;
-		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
-		attacks.DeleteAttackInstance(entity.GetDatasetSize(), entitiesToUnload, unloadEntityCount, renderer, positions, movements, collisions);
-
-		UnloadEntities(entitiesToUnload, unloadEntityCount);
 
 		mapGenerator->CreateVisibleTiles(renderer, entity, positions, sprites, collisions, entityData, triggers);
 
@@ -304,14 +308,17 @@ namespace WM908_Assessment {
 		inputs.Update(datasetSize, window, directions_4, entity, positions, movements, sprites, collisions, attacks);
 		movements.Update(datasetSize, deltaTime, positions, collisions);
 		attacks.Update(datasetSize, deltaTime);
-
-		sprites.Draw(datasetSize, positions, renderer);
+		entityData.Update(datasetSize, playerEntity, numberOfPlayers, positions, collisions);
 
 		if (showCollisionBoxes) collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
 
 		UpdateCameraPosition();
 
 		SetFPS(deltaTime);
+	}
+
+	void GameSystem::Draw() {
+		sprites.Draw(entity.GetDatasetSize(), positions, renderer);
 		DisplayFPS();
 		DisplayPlayerData();
 	}

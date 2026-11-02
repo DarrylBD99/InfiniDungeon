@@ -59,10 +59,10 @@ namespace WM908_Assessment {
 		Mana = 2
 	};
 
-	struct c_Collectible {
+	struct c_Collectable {
 		bool isCollected = false;
 
-		std::string itemID = "";
+		CollectableType type;
 	};
 
 	struct c_Savable {

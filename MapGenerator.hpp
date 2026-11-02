@@ -164,16 +164,27 @@ namespace WM908_Assessment {
 				
 			// Set Sprite Layer of spawners and collectibles to 1 and add another tile entity below
 			// Spawners are given a tile below as they have health and can be destroyed by player
-			else if (tileID >= 8 || tileID <= 13) {
+			else if (tileID >= 8 && tileID <= 13) {
 				sprite->drawLayer = 1;
 				unsigned int floorEntityID = entityManager.AppendEntity();
 				positionSystem.AddComponent(floorEntityID, { worldPositionX, worldPositionY });
-				spriteSystem.AddSprite(floorEntityID, tileID, 0);
+				spriteSystem.AddSprite(floorEntityID, 0, 0);
+
+				// Collectibles
+				if (tileID >= 11) {
+					entityDataSystem.AddCollectable(entityID, CollectableType(tileID - 11));
+					collisionBox->boxSize = { 22.0f };
+					collisionBox->offset = { 5.0f };
+					collisionBox->collisionLayer = 0;
+					collisionBox->collisionMask = CollisionLayer::Player;
+
+				} else { // Spawners
+					entityDataSystem.AddHealth(entityID, 5);
+				}
+
+				return entityManager.GetEntityData(floorEntityID);
 			}
 
-				
-			
-			
 			return entity;
 		}
 

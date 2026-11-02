@@ -134,6 +134,16 @@ namespace WM908_Assessment {
 		return isColliding;
 	}
 
+	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition) const {
+		Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
+
+		Vec2 entityTopLeft = position;
+		Vec2 entityTargetBottomRight = entityTopLeft + collisionBox->boxSize;
+
+		// Use Basic AABB to check collision between boxes
+		return AABB(entityTopLeft, entityTargetBottomRight, targetPosition, targetBottomRight);
+	}
+
 	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool subtractVelocity) const {
 		c_Position* position1 = positionSystem.GetComponent(entityID);
 		
@@ -321,7 +331,6 @@ namespace WM908_Assessment {
 	}
 
 	void s_Sprites::Draw(unsigned int datasetSize, const s_Position& positionSystem, Renderer* renderer) {
-
 		for (unsigned int drawLayer = 0; drawLayer < 4; drawLayer++) {
 			for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
 				c_Sprite* sprite = GetSprite(entityID);
@@ -616,6 +625,49 @@ namespace WM908_Assessment {
 			attackInstanceEntityID.SetValue(nullptr, entityID);
 			unloadedEntities[unloadEntityCount] = entityID;
 			unloadEntityCount++;
+		}
+	}
+
+	void s_EntityData::DeleteCollectables(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer, const s_Position& positionSystem) {
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			c_Collectable* collectable = GetCollectable(entityID);
+			if (collectable != nullptr) {
+				bool isVisible = renderer->IsWorldPositionWithinCamera(positionSystem.GetComponent(entityID)->position);
+
+				if (!collectable->isCollected && isVisible) continue;
+			} else continue;
+
+			unloadedEntities[unloadEntityCount] = entityID;
+			unloadEntityCount++;
+
+		}
+	}
+
+	void s_EntityData::Update(unsigned int datasetSize, unsigned int* playerIDs, unsigned int numberOfPlayers, s_Position& positionSystem, s_Collisions& collisionSystem) {
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			c_Collectable* collectable = GetCollectable(entityID);
+			if (collectable == nullptr) continue;
+			if (collectable->isCollected) continue;
+
+			c_Position* position = positionSystem.GetComponent(entityID);
+			if (position == nullptr) continue;
+
+			c_CollisionBox* collisionBox = collisionSystem.GetCollisionBox(entityID);
+			if (collisionBox == nullptr) continue;
+
+			for (unsigned int i = 0; i < numberOfPlayers; i++) {
+				unsigned int playerID = playerIDs[i];
+
+				c_Position* playerPosition = positionSystem.GetComponent(playerID);
+				if (playerPosition == nullptr) continue;
+
+				c_CollisionBox* playerCollisionBox = collisionSystem.GetCollisionBox(playerID);
+				if (playerCollisionBox == nullptr) continue;
+
+				if (!collisionSystem.IsBoxColliding(collisionBox, playerCollisionBox, position->position, playerPosition->position)) continue;
+				collectable->isCollected = true;
+				break;
+			}
 		}
 	}
 }

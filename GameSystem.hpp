@@ -45,8 +45,6 @@ namespace WM908_Assessment {
 		float debugKeyPressedCounter = debugKeyBuffer;
 		bool showCollisionBoxes = false;
 
-
-	public:
 		unsigned int CreatePlayerEntityBase(PlayerClass playerClass);
 		void CreatePlayer1(PlayerClass playerClass);
 		void CreatePlayer2(PlayerClass playerClass);
@@ -58,12 +56,16 @@ namespace WM908_Assessment {
 		float GetFPS(int frameCount, float deltaTime);
 		void SetFPS(float deltaTime);
 		void DisplayFPS();
-		void Update(float deltaTime);
-		void Draw();
 
 		void UnloadEntities(unsigned int entitiesToUnload[], unsigned int unloadEntityCount);
 
 		void LoadDemoWorld(const PlayerClass playerClass[2]);
+
+	public:
+		void Unload();
+		void Update(float deltaTime);
+		void Draw();
+
 		GameSystem(GamesEngineeringBase::Window& window_, bool hasPlayer2 = false);
 	};
 }

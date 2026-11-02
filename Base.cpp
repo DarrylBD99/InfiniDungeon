@@ -29,6 +29,8 @@ int main() {
 
 		if (gameSystem != nullptr) {
 			gameSystem->Update(dt);
+			gameSystem->Draw();
+			gameSystem->Unload();
 		}
 
 		// Display the frame on the screen. This must be called once the frame is finished in order to display the frame.

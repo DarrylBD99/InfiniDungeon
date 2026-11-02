@@ -127,6 +127,7 @@ namespace WM908_Assessment {
 		bool CanCollide(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox) const;
 		bool AABB(const Vec2& entityTopLeft, const Vec2& entityBottomRight, const Vec2& targetTopLeft, const Vec2& targetBottomRight) const;
 		bool IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool subtractVelocity) const;
+		bool IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition) const;
 		bool CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool subtractVelocity) const;
 	};
 
@@ -234,9 +235,9 @@ namespace WM908_Assessment {
 	private:
 		ComponentSystem<c_Health> health;
 		ComponentSystem<c_Mana> mana;
+		ComponentSystem<c_Collectable> collectable;
 		ComponentSystem<c_Savable> savable;
 	public:
-
 		c_Health* AddHealth(unsigned int entityID, unsigned int maxHealth, unsigned int currentHealth = 0) {
 			c_Health* component = health.AddComponent(entityID);
 			component->max = maxHealth;
@@ -248,6 +249,12 @@ namespace WM908_Assessment {
 			c_Mana* component = mana.AddComponent(entityID);
 			component->max = maxMana;
 			component->current = (currentMana > 0) ? currentMana : maxMana;
+			return component;
+		}
+
+		c_Collectable* AddCollectable(unsigned int entityID, CollectableType collectableType) {
+			c_Collectable* component = collectable.AddComponent(entityID);
+			component->type = collectableType;
 			return component;
 		}
 
@@ -264,6 +271,10 @@ namespace WM908_Assessment {
 			return mana.GetComponent(entityID);
 		}
 
+		c_Collectable* GetCollectable(unsigned int entityID) {
+			return collectable.GetComponent(entityID);
+		}
+
 		bool IsSavable(unsigned int entityID) {
 			return (savable.GetComponent(entityID) != nullptr);
 		}
@@ -272,6 +283,7 @@ namespace WM908_Assessment {
 			health.DeleteComponent(entityID);
 			mana.DeleteComponent(entityID);
 			savable.DeleteComponent(entityID);
+			collectable.DeleteComponent(entityID);
 
 		}
 
@@ -279,8 +291,11 @@ namespace WM908_Assessment {
 			health.DeleteComponents(entityID, size);
 			mana.DeleteComponents(entityID, size);
 			savable.DeleteComponents(entityID, size);
+			collectable.DeleteComponents(entityID, size);
 		}
 
+		void DeleteCollectables(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer, const s_Position& positionSystem);
+		void Update(unsigned int datasetSize, unsigned int* playerIDs, unsigned int numberOfPlayers, s_Position& positionSystem, s_Collisions& collisionSystem);
 	};
 
 	class s_Triggers {
