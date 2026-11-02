@@ -129,7 +129,7 @@ namespace WM908_Assessment {
 			{baseFrame + 22, baseFrame + 21, baseFrame + 23, baseFrame + 21}, // Walk Left
 			{baseFrame + 31, baseFrame + 30, baseFrame + 32, baseFrame + 30}, // Walk Up
 			{baseFrame + 6, baseFrame + 7, baseFrame + 8},     // Attack Down
-			{baseFrame + 14, baseFrame + 15, baseFrame + 16},  // Attack Right
+			{baseFrame + 15, baseFrame + 16, baseFrame + 17},  // Attack Right
 			{baseFrame + 24, baseFrame + 25, baseFrame + 26},  // Attack Left
 			{baseFrame + 33, baseFrame + 34, baseFrame + 35}   // Attack Up
 		};
@@ -326,7 +326,7 @@ namespace WM908_Assessment {
 		if (hasPlayer2) numberOfPlayers = 2;
 
 		// Start new game (Temporary)
-		PlayerClass playerClasses[2] = { PlayerClass::Archer, PlayerClass::Mage };
+		PlayerClass playerClasses[2] = { PlayerClass::Miner, PlayerClass::Mage };
 
 		LoadDemoWorld(playerClasses);
 	}
