@@ -96,7 +96,7 @@ namespace WM908_Assessment {
 			&& entityTopLeft.GetY() < targetBottomRight.GetY() && entityBottomRight.GetY() > targetTopLeft.GetY());
 	}
 
-	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity) const {
+	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool subtractVelocity) const {
 		bool isColliding = false;
 
 		for (unsigned int i = 0; i < 2; i++) {
@@ -136,7 +136,7 @@ namespace WM908_Assessment {
 		return isColliding;
 	}
 
-	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity) const {
+	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool subtractVelocity) const {
 		c_Position* position1 = positionSystem.GetComponent(entityID);
 		
 		if (position1 == nullptr) return false;
@@ -153,7 +153,7 @@ namespace WM908_Assessment {
 
 			if (collisionBox1 == nullptr || collisionBox2 == nullptr || !CanCollide(collisionBox1, collisionBox2)) continue;
 			
-			if (!IsBoxColliding(collisionBox1, collisionBox2, (position1->position + collisionBox1->offset), (position2->position + collisionBox2->offset), velocity)) continue;
+			if (!IsBoxColliding(collisionBox1, collisionBox2, (position1->position + collisionBox1->offset), (position2->position + collisionBox2->offset), velocity, subtractVelocity)) continue;
 			isColliding = true;
 		}
 
@@ -169,7 +169,7 @@ namespace WM908_Assessment {
 			if (position == nullptr) continue;
 
 			Vec2 velocity = movement->velocity * movement->speed * deltaTime;
-			collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity);
+			collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity, movement->subtractVelocityOnCollision);
 
 			position->position += velocity;
 		}
@@ -224,10 +224,14 @@ namespace WM908_Assessment {
 				spriteSystem.PlayAnimation(animatedSprite, animationIdx);
 			}
 
-			c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
-			if (layeredAnimatedSprite != nullptr) {
-				spriteSystem.PlayAnimationAll(layeredAnimatedSprite, animationIdx);
-			}
+			// Wanted to make it so that way the player can move while attacking at the same time
+			// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+			// I'm keeping the code here just so you know it happened
+			// 
+			//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
+			//if (layeredAnimatedSprite != nullptr) {
+			//	spriteSystem.PlayAnimationAll(layeredAnimatedSprite, animationIdx);
+			//}
 		}
 	}
 
@@ -243,30 +247,33 @@ namespace WM908_Assessment {
 		animatedSprite->isPlaying = true;
 		animatedSprite->timePassed = 0.0f;
 	}
+	// Wanted to make it so that way the player can move while attacking at the same time
+	// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+	// I'm keeping the code here just so you know it happened
+	// 
+	//void s_Sprites::PlayAnimationLayer(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int layerID, unsigned int animationIdx, unsigned int startFrame) {
+	//	c_AnimatedSprite* layer = layeredAnimatedSprite->layers[layerID];
 
-	void s_Sprites::PlayAnimationLayer(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int layerID, unsigned int animationIdx, unsigned int startFrame) {
-		c_AnimatedSprite* layer = layeredAnimatedSprite->layers[layerID];
+	//	PlayAnimation(layer, animationIdx, startFrame);
+	//}
 
-		PlayAnimation(layer, animationIdx, startFrame);
-	}
+	//void s_Sprites::PlayAnimationAll(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int animationIdx, unsigned int startFrame) {
+	//	for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
+	//		PlayAnimationLayer(layeredAnimatedSprite, i, animationIdx, startFrame);
+	//	}
+	//}
 
-	void s_Sprites::PlayAnimationAll(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int animationIdx, unsigned int startFrame) {
-		for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
-			PlayAnimationLayer(layeredAnimatedSprite, i, animationIdx, startFrame);
-		}
-	}
+	//void s_Sprites::SyncAnimationLayerFrames(c_LayeredAnimatedSprite* layeredAnimatedSprite) {
+	//	unsigned int parentLayerIdx = layeredAnimatedSprite->parentLayerIdx;
 
-	void s_Sprites::SyncAnimationLayerFrames(c_LayeredAnimatedSprite* layeredAnimatedSprite) {
-		unsigned int parentLayerIdx = layeredAnimatedSprite->parentLayerIdx;
+	//	c_AnimatedSprite* parentLayer = layeredAnimatedSprite->layers[parentLayerIdx];
 
-		c_AnimatedSprite* parentLayer = layeredAnimatedSprite->layers[parentLayerIdx];
+	//	for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
+	//		if (i == parentLayerIdx) continue;
 
-		for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
-			if (i == parentLayerIdx) continue;
-
-			PlayAnimationLayer(layeredAnimatedSprite, i, parentLayer->currentAnimation, parentLayer->animationFrameIndex);
-		}
-	}
+	//		PlayAnimationLayer(layeredAnimatedSprite, i, parentLayer->currentAnimation, parentLayer->animationFrameIndex);
+	//	}
+	//}
 
 	void s_Sprites::DrawSprite(const c_Sprite* spriteComponent, const c_Position* positionComponent, Renderer* renderer) {
 		if (positionComponent == nullptr) return;
@@ -298,17 +305,20 @@ namespace WM908_Assessment {
 
 				continue;
 			}
+			// Wanted to make it so that way the player can move while attacking at the same time
+			// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+			// I'm keeping the code here just so you know it happened
+			// 
+			//c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
+			//if (layeredAnimatedSprite != nullptr) {
+			//	SyncAnimationLayerFrames(layeredAnimatedSprite);
+			//	
+			//	for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
+			//		renderer->UpdateAnimationFrame(deltaTime, layeredAnimatedSprite->layers[i]);
+			//	}
 
-			c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
-			if (layeredAnimatedSprite != nullptr) {
-				SyncAnimationLayerFrames(layeredAnimatedSprite);
-				
-				for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
-					renderer->UpdateAnimationFrame(deltaTime, layeredAnimatedSprite->layers[i]);
-				}
-
-				continue;
-			}
+			//	continue;
+			//}
 		}
 	}
 
@@ -322,15 +332,18 @@ namespace WM908_Assessment {
 
 					DrawSprite(sprite, positionSystem.GetComponent(entityID), renderer);
 				}
+				// Wanted to make it so that way the player can move while attacking at the same time
+				// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+				// I'm keeping the code here just so you know it happened
+				// 
+				//c_LayeredSprite* layeredSprite = GetLayeredSprite(entityID);
+				//if (layeredSprite != nullptr) {
+				//	if (layeredSprite->drawLayer != drawLayer) continue;
 
-				c_LayeredSprite* layeredSprite = GetLayeredSprite(entityID);
-				if (layeredSprite != nullptr) {
-					if (layeredSprite->drawLayer != drawLayer) continue;
-
-					for (unsigned int idx = 0; idx < layeredSprite->numberOfLayers; idx++) {
-						DrawSprite(layeredSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
-					}
-				}
+				//	for (unsigned int idx = 0; idx < layeredSprite->numberOfLayers; idx++) {
+				//		DrawSprite(layeredSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
+				//	}
+				//}
 
 				c_AnimatedSprite* animatedSprite = GetAnimatedSprite(entityID);
 				if (animatedSprite != nullptr) {
@@ -343,14 +356,18 @@ namespace WM908_Assessment {
 					);
 				}
 
-				c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
-				if (layeredAnimatedSprite != nullptr) {
-					if (layeredAnimatedSprite->drawLayer != drawLayer) continue;
+				// Wanted to make it so that way the player can move while attacking at the same time
+				// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+				// I'm keeping the code here just so you know it happened
+				// 
+				//c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
+				//if (layeredAnimatedSprite != nullptr) {
+				//	if (layeredAnimatedSprite->drawLayer != drawLayer) continue;
 
-					for (unsigned int idx = 0; idx < layeredAnimatedSprite->numberOfLayers; idx++) {
-						DrawAnimatedSprite(layeredAnimatedSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
-					}
-				}
+				//	for (unsigned int idx = 0; idx < layeredAnimatedSprite->numberOfLayers; idx++) {
+				//		DrawAnimatedSprite(layeredAnimatedSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
+				//	}
+				//}
 			}
 		}
 	}
@@ -365,26 +382,184 @@ namespace WM908_Assessment {
 		sprite->spritesheetID = activeState->deactiveState;
 	}
 
-	void s_PlayerInput::Update(unsigned int datasetSize, GamesEngineeringBase::Window& window, s_Movement& movementSystem, s_Sprites& spriteSystem) {
+	void s_PlayerInput::InstancePrimaryAttack(unsigned int entityID,
+		s_4Direction& directionSystem,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Movement& movementSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem,
+		s_Attacks& attackSystem)
+	{
+		c_Position* position = positionSystem.GetComponent(entityID);
+		if (position == nullptr) return;
+
+		c_4Direction* direction = directionSystem.GetComponent(entityID);
+		if (direction == nullptr) return;
+
+		c_Melee* meleeAttack = attackSystem.GetMelee(entityID);
+		if (meleeAttack != nullptr) {
+			attackSystem.InstanceMeleeAttack(entityID, meleeAttack, position->position, direction->facing, entityManager, positionSystem, spriteSystem, collisionSystem);
+		}
+	}
+
+	void s_PlayerInput::Update(unsigned int datasetSize,
+		GamesEngineeringBase::Window& window,
+		s_4Direction& directionSystem,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Movement& movementSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem,
+		s_Attacks& attackSystem)
+	{
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
 			c_PlayerInput* input = GetComponent(entityID);
 			if (input == nullptr) continue;
 
-			if (window.keyPressed(input->primaryAttack)) {
-				c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
-				c_AnimatedSprite* topLayer = layeredAnimatedSprite->layers[layeredAnimatedSprite->numberOfLayers - 1];
-				unsigned int direction = topLayer->currentAnimation % 4;
+			// Wanted to make it so that way the player can move while attacking at the same time
+			// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+			// I'm keeping the code here just so you know it happened
+			// 
+			//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
+			//c_AnimatedSprite* topLayer = nullptr;
+			//
+			//if (layeredAnimatedSprite != nullptr) topLayer = layeredAnimatedSprite->layers[layeredAnimatedSprite->numberOfLayers - 1];
+			
+			//if (topLayer != nullptr) {
+			//	if (window.keyPressed(input->primaryAttack)) {
+			//		unsigned int direction = topLayer->currentAnimation % 4;
 
-				spriteSystem.PlayAnimation(topLayer, 2 * 4 + direction);
+			//		if (topLayer->currentAnimation < 8) {
+			//			spriteSystem.PlayAnimation(topLayer, 8 + direction);
+			//			input->isAttacking = true;
+			//		}
+			//	}
+
+			//	if (topLayer->animationFrameIndex == 1 && input->isAttacking) {
+			//		InstancePrimaryAttack(entityID,
+			//			directionSystem,
+			//			entityManager,
+			//			positionSystem,
+			//			movementSystem,
+			//			spriteSystem,
+			//			collisionSystem,
+			//			attackSystem
+			//		);
+			//		input->isAttacking = false;
+			//	}
+			//}
+			
+			c_AnimatedSprite* animatedSprite = spriteSystem.GetAnimatedSprite(entityID);
+			if (animatedSprite == nullptr) continue;
+
+			c_4Direction* direction_4 = directionSystem.GetComponent(entityID);
+			if (direction_4 == nullptr) continue;
+			
+			if (window.keyPressed(input->primaryAttack)) {
+				unsigned int direction = direction_4->facing;
+
+				if (animatedSprite->currentAnimation < 8) {
+					spriteSystem.PlayAnimation(animatedSprite, 8 + direction);
+					input->isAttacking = true;
+				}
+			}
+
+			if (animatedSprite->animationFrameIndex == 1 && input->isAttacking) {
+				InstancePrimaryAttack(entityID,
+					directionSystem,
+					entityManager,
+					positionSystem,
+					movementSystem,
+					spriteSystem,
+					collisionSystem,
+					attackSystem
+				);
+				input->isAttacking = false;
 			}
 
 			c_Movement* movement = movementSystem.GetComponent(entityID);
 			if (movement == nullptr) continue;
 			Vec2 velocity = { 0, 0 };
 
-			velocity += {window.keyPressed(input->keyRight), window.keyPressed(input->keyDown)};
-			velocity -= {window.keyPressed(input->keyLeft), window.keyPressed(input->keyUp)};
+
+			if (animatedSprite->currentAnimation < 8) {
+				velocity += {window.keyPressed(input->keyRight), window.keyPressed(input->keyDown)};
+				velocity -= {window.keyPressed(input->keyLeft), window.keyPressed(input->keyUp)};
+			}
+			
 			movement->velocity = velocity.Normalize();
+		}
+	}
+
+	void s_Attacks::InstanceMeleeAttack(const unsigned int entityID,
+		c_Melee* meleeAttack,
+		const Vec2 entityPosition,
+		const Direction facing,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem)
+	{
+		Vec2 meleePosition = {};
+		
+		switch (facing)
+		{
+		case Direction::Down:
+			meleePosition.SetY(1.0f);
+			break;
+		case Direction::Right:
+			meleePosition.SetX(1.0f);
+			break;
+		case Direction::Left:
+			meleePosition.SetX(-1.0f);
+			break;
+		case Direction::Up:
+			meleePosition.SetY(-1.0f);
+			break;
+		default:
+			break;
+		}
+
+		meleePosition = (meleePosition * Renderer::GRID_SIZE / 2) + entityPosition;
+		unsigned int attackEntityID = entityManager.AppendEntity();
+		positionSystem.AddComponent(attackEntityID, meleePosition);
+		collisionSystem.AddCollisionBox(attackEntityID, {}, 0, meleeAttack->collisionMask);
+		c_Sprite* sprite = spriteSystem.AddSprite(attackEntityID, meleeAttack->spritesheetID, 2);
+		sprite->facing = facing;
+
+		meleeInstanceEntityID.SetValue(entityManager.GetEntityData(entityID), attackEntityID);
+		meleeAttack->timeSinceInstanced = 0.0f;
+	}
+
+	void s_Attacks::Update(unsigned int datasetSize, float deltaTime) {
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			Entity* parent = meleeInstanceEntityID.Get(entityID);
+			if (parent == nullptr) continue;
+
+			unsigned int parentEntityID = parent->GetEntityID();
+
+			c_Melee* meleeAttack = GetMelee(parentEntityID);
+			if (meleeAttack != nullptr) {
+				meleeAttack->timeSinceInstanced += deltaTime;
+			}
+		}
+	}
+
+	void s_Attacks::DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			Entity* parent = meleeInstanceEntityID.Get(entityID);
+			if (parent == nullptr) continue;
+
+			unsigned int parentEntityID = parent->GetEntityID();
+
+			c_Melee* meleeAttack = GetMelee(parentEntityID);
+			if (meleeAttack != nullptr) {
+				if (meleeAttack->timeSinceInstanced < meleeAttack->instanceDuration) continue;
+				meleeInstanceEntityID.SetValue(nullptr, entityID);
+				unloadedEntities[unloadEntityCount] = entityID;
+				unloadEntityCount++;
+			}
 		}
 	}
 }

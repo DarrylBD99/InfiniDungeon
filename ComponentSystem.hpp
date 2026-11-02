@@ -123,8 +123,8 @@ namespace WM908_Assessment {
 		
 		bool CanCollide(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox) const;
 		bool AABB(const Vec2& entityTopLeft, const Vec2& entityBottomRight, const Vec2& targetTopLeft, const Vec2& targetBottomRight) const;
-		bool IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity) const;
-		bool CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity) const;
+		bool IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool subtractVelocity) const;
+		bool CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool subtractVelocity) const;
 	};
 
 	class s_Movement : public ComponentSystem<c_Movement> {
@@ -135,72 +135,83 @@ namespace WM908_Assessment {
 	class s_Sprites {
 	private:
 		ComponentSystem<c_Sprite> sprite;
-		ComponentSystem<c_LayeredSprite> layeredSprite;
+		//ComponentSystem<c_LayeredSprite> layeredSprite;
 		ComponentSystem<c_AnimatedSprite> animatedSprite;
-		ComponentSystem<c_LayeredAnimatedSprite> layeredAnimatedSprite;
+		//ComponentSystem<c_LayeredAnimatedSprite> layeredAnimatedSprite;
 	public:
-		c_Sprite* AddSprite(unsigned int entityID, unsigned int spritesheetID, unsigned int drawLayer) {
+		c_Sprite* AddSprite(unsigned int entityID, unsigned int spritesheetID, unsigned int drawLayer, Vec2 offset = {}) {
 			c_Sprite* component = sprite.AddComponent(entityID);
 			component->spritesheetID = spritesheetID;
 			component->drawLayer = drawLayer;
+			component->offset = offset;
 			return component;
 		}
-		c_LayeredSprite* AddLayeredSprite(unsigned int entityID, unsigned int spritesheetIDs[], unsigned int numberOfLayers, unsigned int drawLayer) {
-			c_LayeredSprite* component = layeredSprite.AddComponent(entityID);
-			for (unsigned int idx = 0; idx < numberOfLayers; idx++) {
-				component->AddLayer(spritesheetIDs[idx]);
-			}
-			
-			component->drawLayer = drawLayer;
-			return component;
-		}
+		//c_LayeredSprite* AddLayeredSprite(unsigned int entityID, unsigned int spritesheetIDs[], unsigned int numberOfLayers, unsigned int drawLayer, Vec2* offset = nullptr) {
+		//	c_LayeredSprite* component = layeredSprite.AddComponent(entityID);
+		//	for (unsigned int idx = 0; idx < numberOfLayers; idx++) {
+		//		c_Sprite* sprite = component->AddLayer(spritesheetIDs[idx]);
+		//		
+		//		if ((offset + idx) == nullptr) continue;
+		//		sprite->offset = offset[idx];
+		//	}
+		//	
+		//	component->drawLayer = drawLayer;
+		//	return component;
+		//}
 
-		c_AnimatedSprite* AddAnimatedSprite(unsigned int entityID, unsigned int drawLayer) {
+		c_AnimatedSprite* AddAnimatedSprite(unsigned int entityID, unsigned int drawLayer, Vec2 offset = {}) {
 			c_AnimatedSprite* component = animatedSprite.AddComponent(entityID);
 			component->drawLayer = drawLayer;
+			component->offset = offset;
 			return component;
 		}
 		
-		c_LayeredAnimatedSprite* AddLayeredAnimatedSprite(unsigned int entityID, unsigned int drawLayer) {
-			c_LayeredAnimatedSprite* component = layeredAnimatedSprite.AddComponent(entityID);
-			component->drawLayer = drawLayer;
-			return component;
-		}
+		//c_LayeredAnimatedSprite* AddLayeredAnimatedSprite(unsigned int entityID, unsigned int drawLayer) {
+		//	c_LayeredAnimatedSprite* component = layeredAnimatedSprite.AddComponent(entityID);
+		//	component->drawLayer = drawLayer;
+		//	return component;
+		//}
 
 		c_Sprite* GetSprite(unsigned int entityID) const {
 			return sprite.GetComponent(entityID);
 		}
 
-		c_LayeredSprite* GetLayeredSprite(unsigned int entityID) const {
-			return layeredSprite.GetComponent(entityID);
-		}
+		//c_LayeredSprite* GetLayeredSprite(unsigned int entityID) const {
+		//	return layeredSprite.GetComponent(entityID);
+		//}
 
 		c_AnimatedSprite* GetAnimatedSprite(unsigned int entityID) const {
 			return animatedSprite.GetComponent(entityID);
 		}
 
-		c_LayeredAnimatedSprite* GetLayeredAnimatedSprite(unsigned int entityID) const {
-			return layeredAnimatedSprite.GetComponent(entityID);
-		}
+		//c_LayeredAnimatedSprite* GetLayeredAnimatedSprite(unsigned int entityID) const {
+		//	return layeredAnimatedSprite.GetComponent(entityID);
+		//}
 
 		void DeleteSpriteComponent(unsigned int entityID) {
 			sprite.DeleteComponent(entityID);
-			layeredSprite.DeleteComponent(entityID);
+			//layeredSprite.DeleteComponent(entityID);
 			animatedSprite.DeleteComponent(entityID);
-			layeredAnimatedSprite.DeleteComponent(entityID);
+			//layeredAnimatedSprite.DeleteComponent(entityID);
 		}
 
 		void DeleteSpriteComponents(unsigned int entityID[], unsigned int size) {
 			sprite.DeleteComponents(entityID, size);
-			layeredSprite.DeleteComponents(entityID, size);
+			//layeredSprite.DeleteComponents(entityID, size);
 			animatedSprite.DeleteComponents(entityID, size);
-			layeredAnimatedSprite.DeleteComponents(entityID, size);
+			//layeredAnimatedSprite.DeleteComponents(entityID, size);
 		}
 
 		void PlayAnimation(c_AnimatedSprite* animatedSprite, unsigned int animationIdx, unsigned int startFrame = 0);
-		void PlayAnimationLayer(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int layerID, unsigned int animationIdx, unsigned int startFrame = 0);
-		void PlayAnimationAll(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int animationIdx, unsigned int startFrame = 0);
-		void SyncAnimationLayerFrames(c_LayeredAnimatedSprite* layeredAnimatedSprite);
+		
+
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		//void PlayAnimationLayer(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int layerID, unsigned int animationIdx, unsigned int startFrame = 0);
+		//void PlayAnimationAll(c_LayeredAnimatedSprite* layeredAnimatedSprite, unsigned int animationIdx, unsigned int startFrame = 0);
+		//void SyncAnimationLayerFrames(c_LayeredAnimatedSprite* layeredAnimatedSprite);
 
 		void Update(unsigned int datasetSize, float deltaTime, Renderer* renderer);
 
@@ -314,7 +325,7 @@ namespace WM908_Assessment {
 			return linkTrigger.GetComponent(entityID);
 		}
 
-		void DeleteDataComponent(unsigned int entityID) {
+		void DeleteTriggerComponent(unsigned int entityID) {
 			activeState.DeleteComponent(entityID);
 			pressTrigger.DeleteComponent(entityID);
 			interactTrigger.DeleteComponent(entityID);
@@ -323,7 +334,7 @@ namespace WM908_Assessment {
 
 		}
 
-		void DeleteDataComponents(unsigned int entityID[], unsigned int size) {
+		void DeleteTriggerComponents(unsigned int entityID[], unsigned int size) {
 			activeState.DeleteComponents(entityID, size);
 			pressTrigger.DeleteComponents(entityID, size);
 			interactTrigger.DeleteComponents(entityID, size);
@@ -332,6 +343,57 @@ namespace WM908_Assessment {
 		}
 
 		void DeactivateState(const unsigned int entityID, s_Sprites& spriteSystem);
+	};
+
+	class s_Attacks {
+	private:
+		ComponentSystem<c_Melee> melee;
+		ComponentSystem<c_Projectile> projectile;
+
+		Dataset::Array<Entity*> meleeInstanceEntityID = Dataset::Array<Entity*>();
+
+	public:
+		c_Melee* AddMelee(unsigned int entityID, unsigned int spritesheetID, float instanceDuration, unsigned int collisionMask = 0) {
+			c_Melee* component = melee.AddComponent(entityID);
+			component->spritesheetID = spritesheetID;
+			component->instanceDuration = instanceDuration;
+			component->collisionMask = collisionMask;
+			return component;
+		}
+
+		c_Projectile* AddProjectile(unsigned int entityID) {
+			return projectile.AddComponent(entityID);
+		}
+
+		c_Melee* GetMelee(unsigned int entityID) const {
+			return melee.GetComponent(entityID);
+		}
+
+		c_Projectile* GetProjectile(unsigned int entityID) const {
+			return projectile.GetComponent(entityID);
+		}
+
+		void DeleteAttackComponent(unsigned int entityID) {
+			melee.DeleteComponent(entityID);
+			projectile.DeleteComponent(entityID);
+		}
+
+		void DeleteAttackComponents(unsigned int entityID[], unsigned int size) {
+			melee.DeleteComponents(entityID, size);
+			projectile.DeleteComponents(entityID, size);
+		}
+
+		void InstanceMeleeAttack(const unsigned int entityID,
+			c_Melee* meleeAttack,
+			const Vec2 entityPosition,
+			const Direction facing,
+			EntityManager& entityManager,
+			s_Position& positionSystem,
+			s_Sprites& spriteSystem,
+			s_Collisions& collisionSystem);
+		
+		void Update(unsigned int datasetSize, float deltaTime);
+		void DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount);
 	};
 
 	class s_4Direction : public ComponentSystem<c_4Direction> {
@@ -343,7 +405,24 @@ namespace WM908_Assessment {
 	};
 
 	class s_PlayerInput : public ComponentSystem<c_PlayerInput > {
+	private:
+		void InstancePrimaryAttack(unsigned int entityID,
+			s_4Direction& directionSystem,
+			EntityManager& entityManager,
+			s_Position& positionSystem,
+			s_Movement& movementSystem,
+			s_Sprites& spriteSystem,
+			s_Collisions& collisionSystem,
+			s_Attacks& attackSystem);
 	public:
-		void Update(unsigned int datasetSize, GamesEngineeringBase::Window& window, s_Movement& movementSystem, s_Sprites& spriteSystem);
+		void Update(unsigned int datasetSize,
+			GamesEngineeringBase::Window& window,
+			s_4Direction& directionSystem,
+			EntityManager& entityManager,
+			s_Position& positionSystem,
+			s_Movement& movementSystem,
+			s_Sprites& spriteSystem,
+			s_Collisions& collisionSystem,
+			s_Attacks& attackSystem);
 	};
 }

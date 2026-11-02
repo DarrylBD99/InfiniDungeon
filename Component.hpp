@@ -26,12 +26,16 @@ namespace WM908_Assessment {
 	struct c_Movement {
 		Vec2 velocity;
 		float speed = 0.0f;
+
+		bool subtractVelocityOnCollision = true;
 	};
 
 	// Interaction Components
 
 	struct c_PlayerInput {
 		int keyUp, keyDown, keyLeft, keyRight, primaryAttack, secondaryAttack;
+
+		bool isAttacking = false;
 	};
 
 	struct c_4Direction {
@@ -64,16 +68,28 @@ namespace WM908_Assessment {
 
 	};
 
+	enum EnemyTypes {
+		Slime = 0,
+		Cannon = 1,
+		Bat = 2
+	};
+
+	struct c_Spawner {
+
+	};
+
 	// Damage Types
 	
 	struct c_Melee {
-		unsigned int* entitiesToIgnore = nullptr;
-		unsigned int entitiesToIgnoreCount = 0;
+		unsigned int collisionMask;
+
+		float instanceDuration = 0.0f;
+		float timeSinceInstanced = 0.0f;
+		unsigned int spritesheetID = 0;
 	};
 
 	struct c_Projectile {
-		unsigned int* entitiesToIgnore = nullptr;
-		unsigned int entitiesToIgnoreCount = 0;
+		unsigned int collisionMask;
 
 		unsigned int spritesheetID = 0;
 		Vec2 collisionBoxSize = {};
@@ -110,8 +126,7 @@ namespace WM908_Assessment {
 	enum CollisionLayer {
 		Wall = 1 << 0,
 		Player = 1 << 1,
-		Enemy = 1 << 2,
-		Projectile = 1 << 3
+		Enemy = 1 << 2
 	};
 
 	struct c_CollisionBox {
@@ -143,32 +158,36 @@ namespace WM908_Assessment {
 		Vec2 offset = { 0, 0 };
 	};
 
-	struct c_LayeredSprite {
-	private:
-		static constexpr unsigned int MAX_LAYERS = 4;
-	public:
-		unsigned int drawLayer = 0;
+	// Wanted to make it so that way the player can move while attacking at the same time
+	// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+	// I'm keeping the code here just so you know it happened
+	// 
+	//struct c_LayeredSprite {
+	//private:
+	//	static constexpr unsigned int MAX_LAYERS = 4;
+	//public:
+	//	unsigned int drawLayer = 0;
 
-		unsigned int parentLayerIdx = 0;
-		unsigned int numberOfLayers = 0;
-		c_Sprite** layers = new c_Sprite * [MAX_LAYERS];
+	//	unsigned int parentLayerIdx = 0;
+	//	unsigned int numberOfLayers = 0;
+	//	c_Sprite** layers = new c_Sprite * [MAX_LAYERS];
 
-		~c_LayeredSprite() {
-			delete[] layers;
-		}
+	//	~c_LayeredSprite() {
+	//		delete[] layers;
+	//	}
 
-		c_Sprite* AddLayer(unsigned int spritesheetID) {
-			if (numberOfLayers >= MAX_LAYERS) return nullptr;
+	//	c_Sprite* AddLayer(unsigned int spritesheetID) {
+	//		if (numberOfLayers >= MAX_LAYERS) return nullptr;
 
-			c_Sprite* layer = new c_Sprite();
-			layer->spritesheetID = spritesheetID;
-			layers[numberOfLayers] = layer;
+	//		c_Sprite* layer = new c_Sprite();
+	//		layer->spritesheetID = spritesheetID;
+	//		layers[numberOfLayers] = layer;
 
-			numberOfLayers++;
+	//		numberOfLayers++;
 
-			return layer;
-		}
-	};
+	//		return layer;
+	//	}
+	//};
 
 	class c_AnimatedSprite {
 	private:
@@ -244,29 +263,33 @@ namespace WM908_Assessment {
 		}
 	};
 
-	class c_LayeredAnimatedSprite {
-	private:
-		static constexpr unsigned int MAX_LAYERS = 4;
-	public:
-		unsigned int drawLayer = 0;
+	// Wanted to make it so that way the player can move while attacking at the same time
+	// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+	// I'm keeping the code here just so you know it happened
+	// 
+	//class c_LayeredAnimatedSprite {
+	//private:
+	//	static constexpr unsigned int MAX_LAYERS = 4;
+	//public:
+	//	unsigned int drawLayer = 0;
 
-		unsigned int parentLayerIdx = 0;
-		unsigned int numberOfLayers = 0;
-		c_AnimatedSprite** layers = new c_AnimatedSprite* [MAX_LAYERS];
+	//	unsigned int parentLayerIdx = 0;
+	//	unsigned int numberOfLayers = 0;
+	//	c_AnimatedSprite** layers = new c_AnimatedSprite* [MAX_LAYERS];
 
-		~c_LayeredAnimatedSprite() {
-			delete[] layers;
-		}
+	//	~c_LayeredAnimatedSprite() {
+	//		delete[] layers;
+	//	}
 
-		c_AnimatedSprite* AddLayer() {
-			if (numberOfLayers >= MAX_LAYERS) return nullptr;
+	//	c_AnimatedSprite* AddLayer() {
+	//		if (numberOfLayers >= MAX_LAYERS) return nullptr;
 
-			c_AnimatedSprite* layer = new c_AnimatedSprite();
-			layers[numberOfLayers] = layer;
+	//		c_AnimatedSprite* layer = new c_AnimatedSprite();
+	//		layers[numberOfLayers] = layer;
 
-			numberOfLayers++;
+	//		numberOfLayers++;
 
-			return layer;
-		}
-	};
+	//		return layer;
+	//	}
+	//};
 }

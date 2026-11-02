@@ -16,6 +16,8 @@ public:
 
 	void SetX(float value);
 	void SetY(float value);
+	Vec2 Rotate(float angleRad) const;
+	Vec2 RotateDeg(float angleDeg) const;
 
 	float DotProduct(const Vec2& target) const;
 	float CrossProduct(const Vec2& target) const;

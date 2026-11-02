@@ -13,19 +13,93 @@ namespace WM908_Assessment {
 		entityData.AddMana(entityID, 50);
 		entityData.AddSavable(entityID);
 
-		// Add Layered AnimatedSprite Component
-		c_LayeredAnimatedSprite* layeredAnimatedSprite = sprites.AddLayeredAnimatedSprite(entityID, 1);
 
-		// Create one layer for top and the other for legs
-		c_AnimatedSprite* bottomLayer = layeredAnimatedSprite->AddLayer();
-		c_AnimatedSprite* topLayer = layeredAnimatedSprite->AddLayer();
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		// Add Layered AnimatedSprite Component
+		//c_LayeredAnimatedSprite* layeredAnimatedSprite = sprites.AddLayeredAnimatedSprite(entityID, 1);
+
+		//// Create one layer for top and the other for legs
+		//c_AnimatedSprite* bottomLayer = layeredAnimatedSprite->AddLayer();
+		//c_AnimatedSprite* topLayer = layeredAnimatedSprite->AddLayer();
+
+		//unsigned int baseFrame = 18;
+		//switch (playerClass)
+		//{
+		//case PlayerClass::Miner: {
+		//	baseFrame = 36;
+		//	attacks.AddMelee(entityID, 19, 0.2f, CollisionLayer::Enemy);
+		//	break;
+		//}
+		//case PlayerClass::Archer:
+		//	baseFrame = 72;
+		//	break;
+		//case PlayerClass::Mage:
+		//	baseFrame = 108;
+		//	break;
+		//default:
+		//	break;
+		//}
+
+		//unsigned int legFrames[8][4] = {
+		//	{baseFrame},      // IDLE Down
+		//	{baseFrame + 9},  // IDLE Right
+		//	{baseFrame + 18}, // IDLE Left
+		//	{baseFrame + 27}, // IDLE Up
+		//	{baseFrame + 1, baseFrame, baseFrame + 2, baseFrame},              // Walk Down
+		//	{baseFrame + 10, baseFrame + 9, baseFrame + 11, baseFrame + 9},    // Walk Right
+		//	{baseFrame + 19, baseFrame + 18, baseFrame + 20, baseFrame + 18},  // Walk Left
+		//	{baseFrame + 28, baseFrame + 27, baseFrame + 29, baseFrame + 27}   // Walk Up
+		//};
+		//unsigned int topFrames[12][4] = {
+		//	{baseFrame + 3},  // IDLE Down
+		//	{baseFrame + 12}, // IDLE Right
+		//	{baseFrame + 21}, // IDLE Left
+		//	{baseFrame + 30}, // IDLE Up
+		//	{baseFrame + 4, baseFrame + 3, baseFrame + 5, baseFrame + 3},     // Walk Down
+		//	{baseFrame + 13, baseFrame + 12, baseFrame + 14, baseFrame + 12}, // Walk Right
+		//	{baseFrame + 22, baseFrame + 21, baseFrame + 23, baseFrame + 21}, // Walk Left
+		//	{baseFrame + 31, baseFrame + 30, baseFrame + 32, baseFrame + 30}, // Walk Up
+		//	{baseFrame + 6, baseFrame + 7, baseFrame + 8},     // Attack Down
+		//	{baseFrame + 14, baseFrame + 15, baseFrame + 16},  // Attack Right
+		//	{baseFrame + 24, baseFrame + 25, baseFrame + 26},  // Attack Left
+		//	{baseFrame + 33, baseFrame + 34, baseFrame + 35}   // Attack Up
+		//};
+
+		//bool isLoop = true;
+		//bool canOverwrite = true;
+		//int frameCount = 1;
+		//for (unsigned int i = 0; i < 12; i++) {
+		//	// Walking Animations
+		//	if (i >= 4) {
+		//		frameCount = 4;
+		//	}
+
+		//	// Attack Animations
+		//	if (i >= 8) {
+		//		frameCount = 3;
+		//		isLoop = false;
+		//		canOverwrite = false;
+		//	}
+
+		//	topLayer->AddAnimation(topFrames[i], frameCount, isLoop, canOverwrite);
+
+		//	if (i >= 8) continue;
+		//	bottomLayer->AddAnimation(legFrames[i], frameCount, isLoop, canOverwrite);
+		//}
+
+		c_AnimatedSprite* animatedSprite = sprites.AddAnimatedSprite(entityID, 1);
 
 		unsigned int baseFrame = 18;
 		switch (playerClass)
 		{
-		case PlayerClass::Miner:
+		case PlayerClass::Miner: {
 			baseFrame = 36;
+			attacks.AddMelee(entityID, 19, 0.2f, CollisionLayer::Enemy);
 			break;
+		}
 		case PlayerClass::Archer:
 			baseFrame = 72;
 			break;
@@ -36,17 +110,7 @@ namespace WM908_Assessment {
 			break;
 		}
 
-		unsigned int legFrames[8][4] = {
-			{baseFrame},      // IDLE Down
-			{baseFrame + 9},  // IDLE Right
-			{baseFrame + 18}, // IDLE Left
-			{baseFrame + 27}, // IDLE Up
-			{baseFrame + 1, baseFrame, baseFrame + 2, baseFrame},              // Walk Down
-			{baseFrame + 10, baseFrame + 9, baseFrame + 11, baseFrame + 9},    // Walk Right
-			{baseFrame + 19, baseFrame + 18, baseFrame + 20, baseFrame + 18},  // Walk Left
-			{baseFrame + 28, baseFrame + 27, baseFrame + 29, baseFrame + 27}   // Walk Up
-		};
-		unsigned int topFrames[12][4] = {
+		unsigned int animationFrames[12][4] = {
 			{baseFrame + 3},  // IDLE Down
 			{baseFrame + 12}, // IDLE Right
 			{baseFrame + 21}, // IDLE Left
@@ -77,10 +141,7 @@ namespace WM908_Assessment {
 				canOverwrite = false;
 			}
 
-			topLayer->AddAnimation(topFrames[i], frameCount, isLoop, canOverwrite);
-
-			if (i >= 8) continue;
-			bottomLayer->AddAnimation(legFrames[i], frameCount, isLoop, canOverwrite);
+			animatedSprite->AddAnimation(animationFrames[i], frameCount, isLoop, canOverwrite);
 		}
 		return entityID;
 	}
@@ -170,9 +231,13 @@ namespace WM908_Assessment {
 		positions.DeleteComponents(entitiesToUnload, unloadEntityCount);
 		movements.DeleteComponents(entitiesToUnload, unloadEntityCount);
 		directions_4.DeleteComponents(entitiesToUnload, unloadEntityCount);
+		collisions.DeleteCollisionComponents(entitiesToUnload, unloadEntityCount);
 		sprites.DeleteSpriteComponents(entitiesToUnload, unloadEntityCount);
 		inputs.DeleteComponents(entitiesToUnload, unloadEntityCount);
-		collisions.DeleteCollisionComponents(entitiesToUnload, unloadEntityCount);
+		
+		entityData.DeleteDataComponents(entitiesToUnload, unloadEntityCount);
+		triggers.DeleteTriggerComponents(entitiesToUnload, unloadEntityCount);
+		attacks.DeleteAttackComponents(entitiesToUnload, unloadEntityCount);
 
 		delete[] entitiesToUnload;
 	}
@@ -210,6 +275,8 @@ namespace WM908_Assessment {
 		unsigned int* entitiesToUnload = new unsigned int[entity.GetDatasetSize()];
 		unsigned int unloadEntityCount = 0;
 		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
+		attacks.DeleteAttackInstance(entity.GetDatasetSize(), entitiesToUnload, unloadEntityCount);
+
 		UnloadEntities(entitiesToUnload, unloadEntityCount);
 
 		mapGenerator->CreateVisibleTiles(renderer, entity, positions, sprites, collisions, entityData, triggers);
@@ -222,8 +289,9 @@ namespace WM908_Assessment {
 
 		sprites.Update(datasetSize, deltaTime, renderer);
 
-		inputs.Update(datasetSize, window, movements, sprites);
+		inputs.Update(datasetSize, window, directions_4, entity, positions, movements, sprites, collisions, attacks);
 		movements.Update(datasetSize, deltaTime, positions, collisions);
+		attacks.Update(datasetSize, deltaTime);
 
 		sprites.Draw(datasetSize, positions, renderer);
 

@@ -57,14 +57,14 @@ namespace WM908_Assessment {
 				}
 
 				case Direction::Right: {
-					pixelX = gridRow;
-					pixelY = ((GRID_SIZE - 1) - gridCol);
+					pixelX = ((GRID_SIZE - 1) - gridRow);
+					pixelY = gridCol;
 					break;
 				}
 
 				case Direction::Left: {
-					pixelX = ((GRID_SIZE - 1) - gridRow);
-					pixelY = gridCol;
+					pixelX = gridRow;
+					pixelY = ((GRID_SIZE - 1) - gridCol);
 					break;
 				}
 

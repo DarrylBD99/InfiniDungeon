@@ -20,6 +20,7 @@ namespace WM908_Assessment {
 		s_PlayerInput inputs;
 		s_EntityData entityData;
 		s_Triggers triggers;
+		s_Attacks attacks;
 
 		Renderer* renderer = new Renderer(window);
 		MapGenerator* mapGenerator = new MapGenerator();

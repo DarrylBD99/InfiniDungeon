@@ -1,4 +1,5 @@
 #include "Vector.hpp"
+#include <numbers>
 #include <cmath>
 
 float Vec2::GetX() const {
@@ -15,6 +16,17 @@ void Vec2::SetX(float value) {
 
 void Vec2::SetY(float value) {
 	y = value;
+}
+
+Vec2 Vec2::Rotate(float angleRad) const {
+	float x_ = x * cosf(angleRad) - y * sinf(angleRad);
+	float y_ = x * sinf(angleRad) + y * cosf(angleRad);
+
+	return { x_, y_ };
+}
+
+Vec2 Vec2::RotateDeg(float angleDeg) const {
+	return Rotate(angleDeg * (std::numbers::pi / 180.0f));
 }
 
 float Vec2::GetAngle() const {
