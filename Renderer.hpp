@@ -12,6 +12,32 @@ namespace WM908_Assessment {
 		GamesEngineeringBase::Window& canvas;
 		GamesEngineeringBase::Image* spritesheet;
 		unsigned int gridHeight, gridWidth;
+
+		void DrawPixelUp(
+			unsigned int gridPosX,
+			unsigned int gridPosY,
+			unsigned int screenPosX,
+			unsigned int screenPosY,
+			unsigned int screenWidth,
+			int renderWidth,
+			int renderHeight,
+			int clippedX,
+			int clippedY,
+			bool flipH,
+			bool flipV);
+
+		void DrawPixelDown(
+			unsigned int gridPosX,
+			unsigned int gridPosY,
+			unsigned int screenPosX,
+			unsigned int screenPosY,
+			unsigned int screenWidth,
+			int renderWidth,
+			int renderHeight,
+			int clippedX,
+			int clippedY,
+			bool flipH,
+			bool flipV);
 	public:
 		const unsigned int
 			cameraWidth = 383,
@@ -24,8 +50,25 @@ namespace WM908_Assessment {
 		~Renderer();
 
 		void DrawCameraBackground(unsigned char r, unsigned char g, unsigned char b);
-		void DrawFromSpritesheetIDScreenPosition(const Vec2& screenPosition, const unsigned int gridID, const Vec2& offset, Direction facing = Direction::Down, bool flipH = false, bool flipV = false, bool insideCamera = false);
-		void DrawFromSpritesheetIDWorldPosition(const Vec2& worldPosition, const unsigned int gridID, const Vec2& offset, Direction facing = Direction::Down, bool flipH = false, bool flipV = false);
+
+		void DrawFromSpritesheetIDScreenPosition(
+			const Vec2& screenPosition,
+			const unsigned int gridID,
+			const Vec2& offset,
+			Direction facing = Direction::Down,
+			bool flipH = false,
+			bool flipV = false,
+			bool insideCamera = false
+		);
+
+		void DrawFromSpritesheetIDWorldPosition(
+			const Vec2& worldPosition,
+			const unsigned int gridID,
+			const Vec2& offset,
+			Direction facing = Direction::Down,
+			bool flipH = false,
+			bool flipV = false
+		);
 
 		void DrawString(const Vec2& screenPosition, const unsigned char* value);
 

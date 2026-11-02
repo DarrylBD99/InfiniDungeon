@@ -62,7 +62,14 @@ namespace WM908_Assessment {
 	struct c_Collectable {
 		bool isCollected = false;
 
-		CollectableType type;
+		CollectableType type = CollectableType::Key;
+	};
+
+	struct c_Follow {
+		unsigned int mask = 0;
+		float lineOfSight = 0.0f;
+
+		Vec2 targetPosition;
 	};
 
 	struct c_Savable {
@@ -76,7 +83,7 @@ namespace WM908_Assessment {
 	};
 
 	struct c_Spawner {
-
+		EnemyTypes type;
 	};
 
 	// Damage Types
@@ -99,6 +106,8 @@ namespace WM908_Assessment {
 		Vec2 collisionBoxSize = { 32.0f };
 		Vec2 collisionBoxOffset = {};
 		bool followNearestEnemy = false;
+		float followNearestEnemyRange = 0.0f;
+
 		bool rotatesToEntityDirection = true;
 
 		float speed = 200.0f;

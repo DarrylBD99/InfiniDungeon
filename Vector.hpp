@@ -54,4 +54,6 @@ public:
 
 	Vec2 operator/(float value) const;
 	Vec2& operator/=(float value);
+
+	bool operator==(Vec2 value) const;
 };

@@ -31,8 +31,14 @@ namespace WM908_Assessment {
 		Room(int seed, int posX_, int posY_) : posX(posX_), posY(posY_) {
 
 			// Map Data is dependent on x and y position as well as world seed
-			// I would try a complicated algorithm, but for testing purposes, I'm doing something linear
-			int mapData = (seed ^ posX * 31 ^ posY * 17) & 0xF;
+			// Wanted to use Squirrel Eiserloh Noise to generate room type and entrances, but requires external API
+			// Ended up using normal integer noise for now.
+			//float noise = Noise::IntegerNoise(seed, posX, posY);
+			//
+			//if (posX == 0 && posY == 0) noise = (noise + 1) / 2;
+			//if (noise <= 0) return;
+			//
+			//unsigned int mapType = roundf(noise * 8);
 
 
 			// Create Map
@@ -91,22 +97,13 @@ namespace WM908_Assessment {
 
 		}
 
-		void AddTilesToUnload(const Renderer* renderer, const s_Position& positionSystem, unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
-			Vec2 cameraTopLeft, cameraBottomRight;
-			renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
-
+		void UnloadTiles(unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
 			for (unsigned int idx = 0; idx < tileEntities->maxSize; idx++) {
 				Entity* entity = tileEntities->Get(idx);
 				if (entity == nullptr) continue;
-
 				unsigned int entityID = entity->GetEntityID();
-				c_Position* position = positionSystem.GetComponent(entityID);
-				if (position == nullptr) continue;
 
-				if (IsTileVisible(renderer, position)) continue;
-				tileEntities->SetValue(nullptr, idx);
-				unloadedEntities[unloadEntityCount] = entityID;
-				unloadEntityCount++;
+				if (ComponentSystem<void>::IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) tileEntities->SetValue(nullptr, idx);
 			}
 			// temporary print for testing purposes
 			//for (unsigned int idx = 0; idx < height * width; idx++) {
@@ -180,6 +177,7 @@ namespace WM908_Assessment {
 
 				} else { // Spawners
 					entityDataSystem.AddHealth(entityID, 5);
+					collisionBox->collisionLayer = collisionBox->collisionLayer | CollisionLayer::Enemy;
 				}
 
 				return entityManager.GetEntityData(floorEntityID);
@@ -202,8 +200,8 @@ namespace WM908_Assessment {
 					unsigned int worldPositionX = (tileX * Renderer::GRID_SIZE) + (unsigned int)worldPos.GetX();
 					if (!IsTileXVisible(cameraTopLeft, cameraBottomRight, renderer->ConvertWorldToScreenX(worldPositionX))) continue;
 
-					unsigned int idx = tileY * width + tileX;
-					if (tileEntities->Get(idx) != nullptr) continue;
+					 unsigned int idx = tileY * width + tileX;
+					 if (tileEntities->Get(idx) != nullptr) continue;
 
 					Entity* entity = CreateTileEntity(tileIDs[tileY][tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 					tileEntities->SetValue(entity, idx);
@@ -245,8 +243,8 @@ namespace WM908_Assessment {
 			currentRoom = Room::CreateDemoRoom();
 		}
 
-		void AddTilesToUnload(const Renderer* renderer, const s_Position& positionSystem, unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
-			currentRoom->AddTilesToUnload(renderer, positionSystem, unloadedEntities, unloadEntityCount);
+		void UnloadTiles(unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
+			currentRoom->UnloadTiles(unloadedEntities, unloadEntityCount);
 		}
 
 		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {

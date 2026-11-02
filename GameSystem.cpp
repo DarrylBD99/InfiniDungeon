@@ -109,10 +109,11 @@ namespace WM908_Assessment {
 		}
 		case PlayerClass::Mage: {
 			baseFrame = 108;
-			c_Projectile* projectile = attacks.AddProjectile(entityID, 22, 150.0f, true, CollisionLayer::Enemy | CollisionLayer::Wall);
+			c_Projectile* projectile = attacks.AddProjectile(entityID, 22, 150.0f, true, CollisionLayer::Enemy);
 			projectile->collisionBoxSize = { 14.0f };
 			projectile->collisionBoxOffset = { 9.0f };
 			projectile->rotatesToEntityDirection = false;
+			projectile->followNearestEnemyRange = 120.0f;
 			break;
 		}
 		default:
@@ -276,9 +277,11 @@ namespace WM908_Assessment {
 		unsigned int datasetSize = entity.GetDatasetSize();
 		unsigned int* entitiesToUnload = new unsigned int[datasetSize];
 		unsigned int unloadEntityCount = 0;
-		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
-		attacks.DeleteAttackInstance(datasetSize, entitiesToUnload, unloadEntityCount, renderer, positions, movements, collisions);
-		entityData.DeleteCollectables(datasetSize, entitiesToUnload, unloadEntityCount, renderer, positions);
+		positions.UnloadEntities(datasetSize, playerEntity, entitiesToUnload, unloadEntityCount, renderer);
+		mapGenerator->UnloadTiles(entitiesToUnload, unloadEntityCount);
+		
+		attacks.DeleteAttackInstance(datasetSize, entitiesToUnload, unloadEntityCount, positions, movements, collisions);
+		entityData.UnloadEntities(datasetSize, entitiesToUnload, unloadEntityCount);
 
 		UnloadEntities(entitiesToUnload, unloadEntityCount);
 	}
@@ -299,26 +302,33 @@ namespace WM908_Assessment {
 
 		unsigned int datasetSize = entity.GetDatasetSize();
 
-		renderer->DrawCameraBackground(33, 49, 18);
+		for (unsigned int entityID = 0; entityID < entity.GetDatasetSize(); entityID++) {
+			inputs.Update(entityID, datasetSize, window, directions_4, entity, positions, movements, entityData, sprites, collisions, attacks);
+			movements.Update(entityID, datasetSize, deltaTime, positions, collisions);
+			entityData.Update(entityID, datasetSize, deltaTime, playerEntity, numberOfPlayers, positions, movements, collisions);
 
-		directions_4.Update(datasetSize, movements, sprites);
-
-		sprites.Update(datasetSize, deltaTime, renderer);
-
-		inputs.Update(datasetSize, window, directions_4, entity, positions, movements, sprites, collisions, attacks);
-		movements.Update(datasetSize, deltaTime, positions, collisions);
-		attacks.Update(datasetSize, deltaTime);
-		entityData.Update(datasetSize, playerEntity, numberOfPlayers, positions, collisions);
-
-		if (showCollisionBoxes) collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
-
+			directions_4.Update(entityID, movements, sprites);
+			sprites.Update(entityID, deltaTime, renderer);
+			attacks.Update(entityID, deltaTime);
+		}
+		
 		UpdateCameraPosition();
 
 		SetFPS(deltaTime);
 	}
 
 	void GameSystem::Draw() {
-		sprites.Draw(entity.GetDatasetSize(), positions, renderer);
+		for (unsigned int drawLayer = 0; drawLayer < 4; drawLayer++) {
+			for (unsigned int entityID = 0; entityID < entity.GetDatasetSize(); entityID++) {
+				sprites.Draw(entityID, drawLayer, positions.GetComponent(entityID), renderer);
+
+				if (drawLayer == 3 && showCollisionBoxes) {
+					collisions.DrawCollisionBox(entityID, positions, renderer, window);
+				}
+			}
+		}
+
+		renderer->DrawCameraBackground(33, 49, 18);
 		DisplayFPS();
 		DisplayPlayerData();
 	}

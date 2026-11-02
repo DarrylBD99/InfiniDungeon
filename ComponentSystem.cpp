@@ -50,27 +50,39 @@ namespace WM908_Assessment {
 		}
 	}
 
-	void s_Collisions::DrawCollisionBox(unsigned int datasetSize, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) const {
+	void s_Position::UnloadEntities(unsigned int datasetSize, unsigned int entitiesToIgnore[2], unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_CollisionBox* collisionBox = GetCollisionBox(entityID);
-			if (collisionBox == nullptr) continue;
+			if (!EntityCanUnload(entityID, entitiesToIgnore, 2)) continue;
 
-			c_Position* position = positionSystem.GetComponent(entityID);
-			if (position == nullptr) continue;
-			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position + collisionBox->offset);
+			if (IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) continue;
+			
+			c_Position* position = GetComponent(entityID);
+			if (position == nullptr || renderer->IsWorldPositionWithinCamera(position->position) || renderer->IsWorldPositionWithinCamera(position->position + Vec2{ (float) renderer->GRID_SIZE })) continue;
 
-			for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
-				int pixelY = (int)screenPosition.GetY() + y;
-				if (!renderer->IsScreenYWithinCamera(pixelY)) continue;
+			unloadedEntities[unloadEntityCount] = entityID;
+			unloadEntityCount++;
+		}
+	}
 
-				for (unsigned int x = 0; x < collisionBox->boxSize.GetX(); x++) {
-					if (x > 0 && x < (collisionBox->boxSize.GetX() - 1) && y > 0 && y < (collisionBox->boxSize.GetY() - 1)) continue;
+	void s_Collisions::DrawCollisionBox(unsigned int entityID, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) const {
+		c_CollisionBox* collisionBox = GetCollisionBox(entityID);
+		if (collisionBox == nullptr) return;
 
-					int pixelX = (int)screenPosition.GetX() + x;
-					if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
+		c_Position* position = positionSystem.GetComponent(entityID);
+		if (position == nullptr) return;
+		Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position + collisionBox->offset);
 
-					canvas.draw(pixelX, pixelY, 255, 0, 0);
-				}
+		for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
+			int pixelY = (int)screenPosition.GetY() + y;
+			if (!renderer->IsScreenYWithinCamera(pixelY)) continue;
+
+			for (unsigned int x = 0; x < collisionBox->boxSize.GetX(); x++) {
+				if (x > 0 && x < (collisionBox->boxSize.GetX() - 1) && y > 0 && y < (collisionBox->boxSize.GetY() - 1)) continue;
+
+				int pixelX = (int)screenPosition.GetX() + x;
+				if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
+
+				canvas.draw(pixelX, pixelY, 255, 0, 0);
 			}
 		}
 	}
@@ -168,19 +180,17 @@ namespace WM908_Assessment {
 		return isColliding;
 	}
 
-	void s_Movement::Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_Movement* movement = GetComponent(entityID);
-			if (movement == nullptr) continue;
+	void s_Movement::Update(unsigned int entityID, unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem) {
+		c_Movement* movement = GetComponent(entityID);
+		if (movement == nullptr) return;
 
-			c_Position* position = positionSystem.GetComponent(entityID);
-			if (position == nullptr) continue;
+		c_Position* position = positionSystem.GetComponent(entityID);
+		if (position == nullptr) return;
 
-			Vec2 velocity = movement->velocity * movement->speed * deltaTime;
-			collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity, movement->subtractVelocityOnCollision);
+		Vec2 velocity = movement->velocity * movement->speed * deltaTime;
+		collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity, movement->subtractVelocityOnCollision);
 
-			position->position += velocity;
-		}
+		position->position += velocity;
 	}
 
 	void s_4Direction::UpdateDirection(c_4Direction* direction, c_Movement* movement) {
@@ -215,32 +225,29 @@ namespace WM908_Assessment {
 		return animationIndex;
 	}
 
-	void s_4Direction::Update(unsigned int datasetSize, s_Movement& movementSystem, s_Sprites& spriteSystem) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_4Direction* direction = GetComponent(entityID);
-			if (direction == nullptr) continue;
+	void s_4Direction::Update(unsigned int entityID, s_Movement& movementSystem, s_Sprites& spriteSystem) {
+		c_4Direction* direction = GetComponent(entityID);
+		if (direction == nullptr) return;
 
+		c_Movement* movement = movementSystem.GetComponent(entityID);
+		if (movement == nullptr) return;
 
-			c_Movement* movement = movementSystem.GetComponent(entityID);
-			if (movement == nullptr) continue;
+		UpdateDirection(direction, movement);
+		unsigned int animationIdx = GetAnimationIndex(direction, movement);
 
-			UpdateDirection(direction, movement);
-			unsigned int animationIdx = GetAnimationIndex(direction, movement);
-
-			c_AnimatedSprite* animatedSprite = spriteSystem.GetAnimatedSprite(entityID);
-			if (animatedSprite != nullptr) {
-				spriteSystem.PlayAnimation(animatedSprite, animationIdx);
-			}
-
-			// Wanted to make it so that way the player can move while attacking at the same time
-			// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
-			// I'm keeping the code here just so you know it happened
-			// 
-			//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
-			//if (layeredAnimatedSprite != nullptr) {
-			//	spriteSystem.PlayAnimationAll(layeredAnimatedSprite, animationIdx);
-			//}
+		c_AnimatedSprite* animatedSprite = spriteSystem.GetAnimatedSprite(entityID);
+		if (animatedSprite != nullptr) {
+			spriteSystem.PlayAnimation(animatedSprite, animationIdx);
 		}
+
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
+		//if (layeredAnimatedSprite != nullptr) {
+		//	spriteSystem.PlayAnimationAll(layeredAnimatedSprite, animationIdx);
+		//}
 	}
 
 	void s_Sprites::PlayAnimation(c_AnimatedSprite* animatedSprite, unsigned int animationIdx, unsigned int startFrame) {
@@ -305,78 +312,72 @@ namespace WM908_Assessment {
 			animatedSpriteComponent->flipV);
 	}
 
-	void s_Sprites::Update(unsigned int datasetSize, float deltaTime, Renderer* renderer) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_AnimatedSprite* animatedSprite = GetAnimatedSprite(entityID);
-			if (animatedSprite != nullptr) {
-				renderer->UpdateAnimationFrame(deltaTime, animatedSprite);
+	void s_Sprites::Update(unsigned int entityID, float deltaTime, Renderer* renderer) {
+		c_AnimatedSprite* animatedSprite = GetAnimatedSprite(entityID);
+		if (animatedSprite != nullptr) {
+			renderer->UpdateAnimationFrame(deltaTime, animatedSprite);
 
-				continue;
-			}
-			// Wanted to make it so that way the player can move while attacking at the same time
-			// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
-			// I'm keeping the code here just so you know it happened
-			// 
-			//c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
-			//if (layeredAnimatedSprite != nullptr) {
-			//	SyncAnimationLayerFrames(layeredAnimatedSprite);
-			//	
-			//	for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
-			//		renderer->UpdateAnimationFrame(deltaTime, layeredAnimatedSprite->layers[i]);
-			//	}
-
-			//	continue;
-			//}
+			return;
 		}
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		//c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
+		//if (layeredAnimatedSprite != nullptr) {
+		//	SyncAnimationLayerFrames(layeredAnimatedSprite);
+		//	
+		//	for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
+		//		renderer->UpdateAnimationFrame(deltaTime, layeredAnimatedSprite->layers[i]);
+		//	}
+
+		//	return;
+		//}
 	}
 
-	void s_Sprites::Draw(unsigned int datasetSize, const s_Position& positionSystem, Renderer* renderer) {
-		for (unsigned int drawLayer = 0; drawLayer < 4; drawLayer++) {
-			for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-				c_Sprite* sprite = GetSprite(entityID);
-				if (sprite != nullptr) {
-					if (sprite->drawLayer != drawLayer) continue;
+	void s_Sprites::Draw(unsigned int entityID, unsigned int drawLayer, const c_Position* position, Renderer* renderer) {
+		c_Sprite* sprite = GetSprite(entityID);
+		if (sprite != nullptr) {
+			if (sprite->drawLayer != drawLayer) return;
 
-					DrawSprite(sprite, positionSystem.GetComponent(entityID), renderer);
-				}
-				// Wanted to make it so that way the player can move while attacking at the same time
-				// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
-				// I'm keeping the code here just so you know it happened
-				// 
-				//c_LayeredSprite* layeredSprite = GetLayeredSprite(entityID);
-				//if (layeredSprite != nullptr) {
-				//	if (layeredSprite->drawLayer != drawLayer) continue;
-
-				//	for (unsigned int idx = 0; idx < layeredSprite->numberOfLayers; idx++) {
-				//		DrawSprite(layeredSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
-				//	}
-				//}
-
-				c_AnimatedSprite* animatedSprite = GetAnimatedSprite(entityID);
-				if (animatedSprite != nullptr) {
-					if (animatedSprite->drawLayer != drawLayer) continue;
-
-					DrawAnimatedSprite(
-						animatedSprite,
-						positionSystem.GetComponent(entityID),
-						renderer
-					);
-				}
-
-				// Wanted to make it so that way the player can move while attacking at the same time
-				// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
-				// I'm keeping the code here just so you know it happened
-				// 
-				//c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
-				//if (layeredAnimatedSprite != nullptr) {
-				//	if (layeredAnimatedSprite->drawLayer != drawLayer) continue;
-
-				//	for (unsigned int idx = 0; idx < layeredAnimatedSprite->numberOfLayers; idx++) {
-				//		DrawAnimatedSprite(layeredAnimatedSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
-				//	}
-				//}
-			}
+			DrawSprite(sprite, position, renderer);
 		}
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		//c_LayeredSprite* layeredSprite = GetLayeredSprite(entityID);
+		//if (layeredSprite != nullptr) {
+		//	if (layeredSprite->drawLayer != drawLayer) continue;
+
+		//	for (unsigned int idx = 0; idx < layeredSprite->numberOfLayers; idx++) {
+		//		DrawSprite(layeredSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
+		//	}
+		//}
+
+		c_AnimatedSprite* animatedSprite = GetAnimatedSprite(entityID);
+		if (animatedSprite != nullptr) {
+			if (animatedSprite->drawLayer != drawLayer) return;
+
+			DrawAnimatedSprite(
+				animatedSprite,
+				position,
+				renderer
+			);
+		}
+
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		//c_LayeredAnimatedSprite* layeredAnimatedSprite = GetLayeredAnimatedSprite(entityID);
+		//if (layeredAnimatedSprite != nullptr) {
+		//	if (layeredAnimatedSprite->drawLayer != drawLayer) continue;
+
+		//	for (unsigned int idx = 0; idx < layeredAnimatedSprite->numberOfLayers; idx++) {
+		//		DrawAnimatedSprite(layeredAnimatedSprite->layers[idx], positionSystem.GetComponent(entityID), renderer);
+		//	}
+		//}
 	}
 
 	void s_Triggers::DeactivateState(const unsigned int entityID, s_Sprites& spriteSystem) {
@@ -389,11 +390,14 @@ namespace WM908_Assessment {
 		sprite->spritesheetID = activeState->deactiveState;
 	}
 
-	void s_PlayerInput::InstancePrimaryAttack(unsigned int entityID,
+	void s_PlayerInput::InstancePrimaryAttack(
+		unsigned int datasetSize,
+		unsigned int entityID,
 		s_4Direction& directionSystem,
 		EntityManager& entityManager,
 		s_Position& positionSystem,
 		s_Movement& movementSystem,
+		s_EntityData& entityDataSystem,
 		s_Sprites& spriteSystem,
 		s_Collisions& collisionSystem,
 		s_Attacks& attackSystem)
@@ -411,97 +415,101 @@ namespace WM908_Assessment {
 
 		c_Projectile* projectile = attackSystem.GetProjectile(entityID);
 		if (projectile != nullptr) {
-			attackSystem.InstanceProjectile(entityID, projectile, position->position, direction->facing, entityManager, positionSystem, movementSystem, spriteSystem, collisionSystem);
+			attackSystem.InstanceProjectile(datasetSize, entityID, projectile, position->position, direction->facing, entityManager, positionSystem, movementSystem, entityDataSystem, spriteSystem, collisionSystem);
 		}
 	}
 
-	void s_PlayerInput::Update(unsigned int datasetSize,
+	void s_PlayerInput::Update(
+		unsigned int entityID,
+		unsigned int datasetSize,
 		GamesEngineeringBase::Window& window,
 		s_4Direction& directionSystem,
 		EntityManager& entityManager,
 		s_Position& positionSystem,
 		s_Movement& movementSystem,
+		s_EntityData& entityDataSystem,
 		s_Sprites& spriteSystem,
 		s_Collisions& collisionSystem,
 		s_Attacks& attackSystem)
 	{
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_PlayerInput* input = GetComponent(entityID);
-			if (input == nullptr) continue;
+		c_PlayerInput* input = GetComponent(entityID);
+		if (input == nullptr) return;
 
-			// Wanted to make it so that way the player can move while attacking at the same time
-			// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
-			// I'm keeping the code here just so you know it happened
-			// 
-			//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
-			//c_AnimatedSprite* topLayer = nullptr;
-			//
-			//if (layeredAnimatedSprite != nullptr) topLayer = layeredAnimatedSprite->layers[layeredAnimatedSprite->numberOfLayers - 1];
+		// Wanted to make it so that way the player can move while attacking at the same time
+		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
+		// I'm keeping the code here just so you know it happened
+		// 
+		//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
+		//c_AnimatedSprite* topLayer = nullptr;
+		//
+		//if (layeredAnimatedSprite != nullptr) topLayer = layeredAnimatedSprite->layers[layeredAnimatedSprite->numberOfLayers - 1];
 			
-			//if (topLayer != nullptr) {
-			//	if (window.keyPressed(input->primaryAttack)) {
-			//		unsigned int direction = topLayer->currentAnimation % 4;
+		//if (topLayer != nullptr) {
+		//	if (window.keyPressed(input->primaryAttack)) {
+		//		unsigned int direction = topLayer->currentAnimation % 4;
 
-			//		if (topLayer->currentAnimation < 8) {
-			//			spriteSystem.PlayAnimation(topLayer, 8 + direction);
-			//			input->isAttacking = true;
-			//		}
-			//	}
+		//		if (topLayer->currentAnimation < 8) {
+		//			spriteSystem.PlayAnimation(topLayer, 8 + direction);
+		//			input->isAttacking = true;
+		//		}
+		//	}
 
-			//	if (topLayer->animationFrameIndex == 1 && input->isAttacking) {
-			//		InstancePrimaryAttack(entityID,
-			//			directionSystem,
-			//			entityManager,
-			//			positionSystem,
-			//			movementSystem,
-			//			spriteSystem,
-			//			collisionSystem,
-			//			attackSystem
-			//		);
-			//		input->isAttacking = false;
-			//	}
-			//}
+		//	if (topLayer->animationFrameIndex == 1 && input->isAttacking) {
+		//		InstancePrimaryAttack(entityID,
+		//			directionSystem,
+		//			entityManager,
+		//			positionSystem,
+		//			movementSystem,
+		//			spriteSystem,
+		//			collisionSystem,
+		//			attackSystem
+		//		);
+		//		input->isAttacking = false;
+		//	}
+		//}
 			
-			c_AnimatedSprite* animatedSprite = spriteSystem.GetAnimatedSprite(entityID);
-			if (animatedSprite == nullptr) continue;
+		c_AnimatedSprite* animatedSprite = spriteSystem.GetAnimatedSprite(entityID);
+		if (animatedSprite == nullptr) return;
 
-			c_4Direction* direction_4 = directionSystem.GetComponent(entityID);
-			if (direction_4 == nullptr) continue;
+		c_4Direction* direction_4 = directionSystem.GetComponent(entityID);
+		if (direction_4 == nullptr) return;
 			
-			if (window.keyPressed(input->primaryAttack)) {
-				unsigned int direction = direction_4->facing;
-
-				if (animatedSprite->currentAnimation < 8) {
-					spriteSystem.PlayAnimation(animatedSprite, 8 + direction);
-					input->isAttacking = true;
-				}
-			}
-
-			if (animatedSprite->animationFrameIndex == 1 && input->isAttacking) {
-				InstancePrimaryAttack(entityID,
-					directionSystem,
-					entityManager,
-					positionSystem,
-					movementSystem,
-					spriteSystem,
-					collisionSystem,
-					attackSystem
-				);
-				input->isAttacking = false;
-			}
-
-			c_Movement* movement = movementSystem.GetComponent(entityID);
-			if (movement == nullptr) continue;
-			Vec2 velocity = { 0, 0 };
-
+		if (window.keyPressed(input->primaryAttack)) {
+			unsigned int direction = direction_4->facing;
 
 			if (animatedSprite->currentAnimation < 8) {
-				velocity += {window.keyPressed(input->keyRight), window.keyPressed(input->keyDown)};
-				velocity -= {window.keyPressed(input->keyLeft), window.keyPressed(input->keyUp)};
+				spriteSystem.PlayAnimation(animatedSprite, 8 + direction);
+				input->isAttacking = true;
 			}
-			
-			movement->velocity = velocity.Normalize();
 		}
+
+		if (animatedSprite->animationFrameIndex == 1 && input->isAttacking) {
+			InstancePrimaryAttack(
+				datasetSize,
+				entityID,
+				directionSystem,
+				entityManager,
+				positionSystem,
+				movementSystem,
+				entityDataSystem,
+				spriteSystem,
+				collisionSystem,
+				attackSystem
+			);
+			input->isAttacking = false;
+		}
+
+		c_Movement* movement = movementSystem.GetComponent(entityID);
+		if (movement == nullptr) return;
+		Vec2 velocity = { 0, 0 };
+
+
+		if (animatedSprite->currentAnimation < 8) {
+			velocity += {window.keyPressed(input->keyRight), window.keyPressed(input->keyDown)};
+			velocity -= {window.keyPressed(input->keyLeft), window.keyPressed(input->keyUp)};
+		}
+			
+		movement->velocity = velocity.Normalize();
 	}
 
 	void s_Attacks::InstanceMeleeAttack(const unsigned int entityID,
@@ -541,13 +549,16 @@ namespace WM908_Assessment {
 		meleeAttack->timeSinceInstanced = 0.0f;
 	}
 
-	void s_Attacks::InstanceProjectile(const unsigned int entityID,
+	void s_Attacks::InstanceProjectile(
+		const unsigned int datasetSize,
+		const unsigned int entityID,
 		c_Projectile* projectile,
 		const Vec2 entityPosition,
 		const Direction facing,
 		EntityManager& entityManager,
 		s_Position& positionSystem,
 		s_Movement& movementSystem,
+		s_EntityData& entityDataSystem,
 		s_Sprites& spriteSystem,
 		s_Collisions& collisionSystem)
 	{
@@ -569,35 +580,43 @@ namespace WM908_Assessment {
 		}
 
 		unsigned int attackEntityID = entityManager.AppendEntity();
-		positionSystem.AddComponent(attackEntityID, entityPosition);
+		c_Position* position = positionSystem.AddComponent(attackEntityID, entityPosition);
 		c_Movement* movement = movementSystem.AddComponent(attackEntityID, projectile->speed);
 		movement->velocity = rangedDirection;
-		
-		collisionSystem.AddCollisionBox(attackEntityID, projectile->collisionBoxSize, projectile->collisionBoxOffset, 0, projectile->collisionMask);
+
+		c_CollisionBox* collisionBox = collisionSystem.AddCollisionBox(attackEntityID, projectile->collisionBoxSize, projectile->collisionBoxOffset, 0, projectile->collisionMask);
 		c_Sprite* sprite = spriteSystem.AddSprite(attackEntityID, projectile->spritesheetID, 2);
 
+		if (projectile->followNearestEnemy) {
+			entityDataSystem.AddFollow(attackEntityID, projectile->followNearestEnemyRange, projectile->collisionMask);
+			Vec2 nearestOpp = entityDataSystem.FollowGetNearestEntityPosition(datasetSize, projectile->followNearestEnemyRange, position->position, collisionBox, positionSystem, collisionSystem);
+
+			if (position->position.DistanceTo(nearestOpp) > 0) {
+				movement->velocity = (nearestOpp - position->position).Normalize();
+			}
+		}
 		if (projectile->rotatesToEntityDirection) sprite->facing = facing;
 
 		attackInstanceEntityID.SetValue(entityManager.GetEntityData(entityID), attackEntityID);
 
 	}
 
-	void s_Attacks::Update(unsigned int datasetSize, float deltaTime) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			Entity* parent = attackInstanceEntityID.Get(entityID);
-			if (parent == nullptr) continue;
+	void s_Attacks::Update(unsigned int entityID, float deltaTime) {
+		Entity* parent = attackInstanceEntityID.Get(entityID);
+		if (parent == nullptr) return;
 
-			unsigned int parentEntityID = parent->GetEntityID();
+		unsigned int parentEntityID = parent->GetEntityID();
 
-			c_Melee* meleeAttack = GetMelee(parentEntityID);
-			if (meleeAttack != nullptr) {
-				meleeAttack->timeSinceInstanced += deltaTime;
-			}
+		c_Melee* meleeAttack = GetMelee(parentEntityID);
+		if (meleeAttack != nullptr) {
+			meleeAttack->timeSinceInstanced += deltaTime;
 		}
 	}
 
-	void s_Attacks::DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer, const s_Position& positionSystem, const s_Movement& movementSystem, const s_Collisions& collisionSystem) {
+	void s_Attacks::DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, const s_Position& positionSystem, const s_Movement& movementSystem, const s_Collisions& collisionSystem) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			if (ComponentSystem<void>::IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) continue;
+
 			Entity* parent = attackInstanceEntityID.Get(entityID);
 			if (parent == nullptr) continue;
 
@@ -616,10 +635,7 @@ namespace WM908_Assessment {
 				c_Movement* movement = movementSystem.GetComponent(entityID);
 				if (movement == nullptr) continue;
 
-				bool isColliding = collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, movement->velocity, false);
-				bool isOnScreen = renderer->IsWorldPositionWithinCamera(position->position);
-
-				if (!isColliding && isOnScreen) continue;
+				if (!collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, movement->velocity, false)) continue;
 			} else continue;
 
 			attackInstanceEntityID.SetValue(nullptr, entityID);
@@ -628,32 +644,52 @@ namespace WM908_Assessment {
 		}
 	}
 
-	void s_EntityData::DeleteCollectables(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer, const s_Position& positionSystem) {
+	void s_EntityData::UnloadEntities(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_Collectable* collectable = GetCollectable(entityID);
-			if (collectable != nullptr) {
-				bool isVisible = renderer->IsWorldPositionWithinCamera(positionSystem.GetComponent(entityID)->position);
+			if (ComponentSystem<void>::IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) continue;
 
-				if (!collectable->isCollected && isVisible) continue;
-			} else continue;
+			c_Collectable* collectable = GetCollectable(entityID);
+			if (collectable == nullptr || !collectable->isCollected) continue;
 
 			unloadedEntities[unloadEntityCount] = entityID;
 			unloadEntityCount++;
-
 		}
 	}
 
-	void s_EntityData::Update(unsigned int datasetSize, unsigned int* playerIDs, unsigned int numberOfPlayers, s_Position& positionSystem, s_Collisions& collisionSystem) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			c_Collectable* collectable = GetCollectable(entityID);
-			if (collectable == nullptr) continue;
-			if (collectable->isCollected) continue;
+	Vec2 s_EntityData::FollowGetNearestEntityPosition(unsigned int datasetSize, float lineOfSight, const Vec2& position, c_CollisionBox* collisionBox, s_Position& positionSystem, s_Collisions& collisionSystem) {
+		Vec2 closestTargetPos = position;
+		float closestDistance = -1;
 
-			c_Position* position = positionSystem.GetComponent(entityID);
-			if (position == nullptr) continue;
+		for (unsigned int targetEntityID = 0; targetEntityID < datasetSize; targetEntityID++) {
+			c_CollisionBox* targetCollisionBox = collisionSystem.GetCollisionBox(targetEntityID);
+			if (targetCollisionBox == nullptr || !collisionSystem.CanCollide(collisionBox, targetCollisionBox)) continue;
 
-			c_CollisionBox* collisionBox = collisionSystem.GetCollisionBox(entityID);
-			if (collisionBox == nullptr) continue;
+			c_Position* targetPosition = positionSystem.GetComponent(targetEntityID);
+			if (targetPosition == nullptr) continue;
+
+			float distance = position.DistanceTo(targetPosition->position);
+			if (lineOfSight > 0 && distance > lineOfSight) continue;
+			
+			if (closestDistance > 0 && distance > closestDistance) continue;
+
+			closestTargetPos = targetPosition->position;
+			closestDistance = distance;
+		}
+
+		return closestTargetPos;
+	}
+
+	void s_EntityData::Update(unsigned int entityID, unsigned int datasetSize, float deltaTime, unsigned int* playerIDs, unsigned int numberOfPlayers, s_Position& positionSystem, s_Movement& movementSystem, s_Collisions& collisionSystem) {
+		c_Collectable* collectable = GetCollectable(entityID);
+
+		c_Position* position = positionSystem.GetComponent(entityID);
+		if (position == nullptr) return;
+
+		c_CollisionBox* collisionBox = collisionSystem.GetCollisionBox(entityID);
+		if (collisionBox == nullptr) return;
+
+		if (collectable != nullptr) {
+			if (collectable->isCollected) return;
 
 			for (unsigned int i = 0; i < numberOfPlayers; i++) {
 				unsigned int playerID = playerIDs[i];
@@ -662,12 +698,26 @@ namespace WM908_Assessment {
 				if (playerPosition == nullptr) continue;
 
 				c_CollisionBox* playerCollisionBox = collisionSystem.GetCollisionBox(playerID);
-				if (playerCollisionBox == nullptr) continue;
-
-				if (!collisionSystem.IsBoxColliding(collisionBox, playerCollisionBox, position->position, playerPosition->position)) continue;
+				if (playerCollisionBox == nullptr || !collisionSystem.IsBoxColliding(collisionBox, playerCollisionBox, position->position, playerPosition->position)) continue;
 				collectable->isCollected = true;
 				break;
 			}
+		}
+			
+		followUpdateCounter += deltaTime;
+		if (followUpdateCounter < runFollowCode) return;
+
+		followUpdateCounter -= runFollowCode;
+			
+		c_Follow* follow = GetFollow(entityID);
+		if (follow != nullptr) {
+			c_Movement* movement = movementSystem.GetComponent(entityID);
+			if (movement == nullptr) return;
+
+			Vec2 closestTargetPos = FollowGetNearestEntityPosition(datasetSize, follow->lineOfSight, position->position, collisionBox, positionSystem, collisionSystem);
+
+			if (position->position.DistanceTo(closestTargetPos) <= 0) return;
+			movement->velocity = (closestTargetPos - position->position).Normalize();
 		}
 	}
 }

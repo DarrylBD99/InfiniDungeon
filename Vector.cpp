@@ -148,3 +148,7 @@ Vec2& Vec2::operator/=(float value) {
 
 	return *this;
 }
+
+bool Vec2::operator==(Vec2 value) const {
+	return (value.x == x && value.y == y);
+}
