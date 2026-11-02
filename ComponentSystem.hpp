@@ -13,8 +13,11 @@ namespace WM908_Assessment {
 		void ResetDatasetSize();
 
 	public:
-		EntityManager();
-		~EntityManager();
+		~EntityManager() {
+			for (Entity* entity : entityDataset) {
+				delete entity;
+			}
+		}
 
 		bool EntityExist(unsigned int id) const;
 
@@ -129,6 +132,12 @@ namespace WM908_Assessment {
 
 	class s_Movement : public ComponentSystem<c_Movement> {
 	public:
+		c_Movement* AddComponent(unsigned int entityID, const float speed) {
+			c_Movement* component = ComponentSystem<c_Movement>::AddComponent(entityID);
+			component->speed = speed;
+
+			return component;
+		}
 		void Update(unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem);
 	};
 
@@ -350,7 +359,7 @@ namespace WM908_Assessment {
 		ComponentSystem<c_Melee> melee;
 		ComponentSystem<c_Projectile> projectile;
 
-		Dataset::Array<Entity*> meleeInstanceEntityID = Dataset::Array<Entity*>();
+		Dataset::Array<Entity*> attackInstanceEntityID = Dataset::Array<Entity*>();
 
 	public:
 		c_Melee* AddMelee(unsigned int entityID, unsigned int spritesheetID, float instanceDuration, unsigned int collisionMask = 0) {
@@ -361,8 +370,14 @@ namespace WM908_Assessment {
 			return component;
 		}
 
-		c_Projectile* AddProjectile(unsigned int entityID) {
-			return projectile.AddComponent(entityID);
+		c_Projectile* AddProjectile(unsigned int entityID, unsigned int spritesheetID, float speed, bool followNearestEnemy = false, unsigned int collisionMask = 0) {
+			c_Projectile* component = projectile.AddComponent(entityID);
+			component->spritesheetID = spritesheetID;
+			component->speed = speed;
+			component->followNearestEnemy = followNearestEnemy;
+			component->collisionMask = collisionMask;
+			
+			return component;
 		}
 
 		c_Melee* GetMelee(unsigned int entityID) const {
@@ -391,9 +406,19 @@ namespace WM908_Assessment {
 			s_Position& positionSystem,
 			s_Sprites& spriteSystem,
 			s_Collisions& collisionSystem);
+
+		void InstanceProjectile(const unsigned int entityID,
+			c_Projectile* projectile,
+			const Vec2 entityPosition,
+			const Direction facing,
+			EntityManager& entityManager,
+			s_Position& positionSystem,
+			s_Movement& movementSystem,
+			s_Sprites& spriteSystem,
+			s_Collisions& collisionSystem);
 		
 		void Update(unsigned int datasetSize, float deltaTime);
-		void DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount);
+		void DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer, const s_Position& positionSystem, const s_Movement& movementSystem, const s_Collisions& collisionSystem);
 	};
 
 	class s_4Direction : public ComponentSystem<c_4Direction> {

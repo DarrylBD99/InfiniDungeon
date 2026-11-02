@@ -13,7 +13,7 @@ int main() {
 	// Timer object to manage time-based events, such as movement speed
 	GamesEngineeringBase::Timer timer;
 	
-	gameSystem = new WM908_Assessment::GameSystem(window);
+	gameSystem = new WM908_Assessment::GameSystem(window, true);
 	
 	while (true) {
 		// Clear the window for the next frame rendering

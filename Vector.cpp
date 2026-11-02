@@ -19,14 +19,14 @@ void Vec2::SetY(float value) {
 }
 
 Vec2 Vec2::Rotate(float angleRad) const {
-	float x_ = x * cosf(angleRad) - y * sinf(angleRad);
-	float y_ = x * sinf(angleRad) + y * cosf(angleRad);
+	float x_ = x * std::cosf(angleRad) - y * std::sinf(angleRad);
+	float y_ = x * std::sinf(angleRad) + y * std::cosf(angleRad);
 
 	return { x_, y_ };
 }
 
 Vec2 Vec2::RotateDeg(float angleDeg) const {
-	return Rotate(angleDeg * (std::numbers::pi / 180.0f));
+	return Rotate(angleDeg * ((float)std::numbers::pi / 180.0f));
 }
 
 float Vec2::GetAngle() const {

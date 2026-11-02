@@ -56,8 +56,10 @@ namespace WM908_Assessment {
 		void UpdateCameraPosition();
 
 		float GetFPS(int frameCount, float deltaTime);
-		void DisplayFPS(float deltaTime);
+		void SetFPS(float deltaTime);
+		void DisplayFPS();
 		void Update(float deltaTime);
+		void Draw();
 
 		void UnloadEntities(unsigned int entitiesToUnload[], unsigned int unloadEntityCount);
 

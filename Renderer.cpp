@@ -209,6 +209,10 @@ namespace WM908_Assessment {
 		return worldPositionY - (int)cameraWorldPosition.GetY() + (cameraHeight / 2) + cameraBorderWidth;
 	}
 
+	bool Renderer::IsWorldPositionWithinCamera(const Vec2& worldPosition) const {
+		return IsScreenPositionWithinCamera(ConvertWorldToScreen(worldPosition));
+	}
+
 	bool Renderer::IsScreenPositionWithinCamera(const Vec2& screenPosition) const {
 		return IsScreenXWithinCamera((int)screenPosition.GetX()) && IsScreenYWithinCamera((int)screenPosition.GetY());
 	}

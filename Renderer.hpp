@@ -29,6 +29,7 @@ namespace WM908_Assessment {
 
 		void DrawString(const Vec2& screenPosition, const unsigned char* value);
 
+		bool IsWorldPositionWithinCamera(const Vec2& worldPosition) const;
 		bool IsScreenPositionWithinCamera(const Vec2& screenPosition) const;
 		bool IsScreenXWithinCamera(const int screenPixelX) const;
 		bool IsScreenYWithinCamera(const int screenPixelY) const;

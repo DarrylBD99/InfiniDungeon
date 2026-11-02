@@ -4,9 +4,7 @@ namespace WM908_Assessment {
 	unsigned int GameSystem::CreatePlayerEntityBase(PlayerClass playerClass) {
 		unsigned int entityID = entity.AppendEntity();
 		directions_4.AddComponent(entityID);
-
-		c_Movement* movement = movements.AddComponent(entityID);
-		movement->speed = 150.0f;
+		movements.AddComponent(entityID, 150.0f);
 
 		collisions.AddCollisionBox(entityID, Vec2{ 20.0f, 32.0f }, Vec2{ 6.0f, 0.0f }, CollisionLayer::Player, CollisionLayer::Wall);
 		entityData.AddHealth(entityID, 100);
@@ -97,15 +95,26 @@ namespace WM908_Assessment {
 		{
 		case PlayerClass::Miner: {
 			baseFrame = 36;
-			attacks.AddMelee(entityID, 19, 0.2f, CollisionLayer::Enemy);
+			c_Melee* meleeAttack = attacks.AddMelee(entityID, 19, 0.2f, CollisionLayer::Enemy);
+			meleeAttack->positionOffset = (float)Renderer::GRID_SIZE / 1.8f;
 			break;
 		}
-		case PlayerClass::Archer:
+		case PlayerClass::Archer: {
 			baseFrame = 72;
+			c_Projectile* projectile = attacks.AddProjectile(entityID, 21, 250.0f, false, CollisionLayer::Enemy | CollisionLayer::Wall);
+			projectile->collisionBoxSize = { 16.0f };
+			projectile->collisionBoxOffset = { 8.0f };
+
 			break;
-		case PlayerClass::Mage:
+		}
+		case PlayerClass::Mage: {
 			baseFrame = 108;
+			c_Projectile* projectile = attacks.AddProjectile(entityID, 22, 150.0f, true, CollisionLayer::Enemy | CollisionLayer::Wall);
+			projectile->collisionBoxSize = { 14.0f };
+			projectile->collisionBoxOffset = { 9.0f };
+			projectile->rotatesToEntityDirection = false;
 			break;
+		}
 		default:
 			break;
 		}
@@ -247,7 +256,7 @@ namespace WM908_Assessment {
 		return (float)frameCount / deltaTime;
 	}
 
-	void GameSystem::DisplayFPS(float deltaTime) {
+	void GameSystem::SetFPS(float deltaTime) {
 		frameCount++;
 		elapsed += deltaTime;
 		if (elapsed >= 0.1f) {
@@ -255,7 +264,9 @@ namespace WM908_Assessment {
 			frameCount = 0;
 			elapsed = 0.0f;
 		}
+	}
 
+	void GameSystem::DisplayFPS() {
 		std::string fpsString = "FPS: " + std::to_string(currentFPS);
 		renderer->DrawString({ cameraBounds.GetX(), cameraBounds.GetY() - 32 }, (unsigned char*)fpsString.c_str());
 	}
@@ -272,10 +283,11 @@ namespace WM908_Assessment {
 			debugKeyPressedCounter += deltaTime;
 		}
 
+		// Unload Entities
 		unsigned int* entitiesToUnload = new unsigned int[entity.GetDatasetSize()];
 		unsigned int unloadEntityCount = 0;
 		mapGenerator->AddTilesToUnload(renderer, positions, entitiesToUnload, unloadEntityCount);
-		attacks.DeleteAttackInstance(entity.GetDatasetSize(), entitiesToUnload, unloadEntityCount);
+		attacks.DeleteAttackInstance(entity.GetDatasetSize(), entitiesToUnload, unloadEntityCount, renderer, positions, movements, collisions);
 
 		UnloadEntities(entitiesToUnload, unloadEntityCount);
 
@@ -298,8 +310,9 @@ namespace WM908_Assessment {
 		if (showCollisionBoxes) collisions.DrawCollisionBox(datasetSize, positions, renderer, window);
 
 		UpdateCameraPosition();
-		
-		DisplayFPS(deltaTime);
+
+		SetFPS(deltaTime);
+		DisplayFPS();
 		DisplayPlayerData();
 	}
 
@@ -313,7 +326,7 @@ namespace WM908_Assessment {
 		if (hasPlayer2) numberOfPlayers = 2;
 
 		// Start new game (Temporary)
-		PlayerClass playerClasses[2] = { PlayerClass::Miner, PlayerClass::Mage };
+		PlayerClass playerClasses[2] = { PlayerClass::Archer, PlayerClass::Mage };
 
 		LoadDemoWorld(playerClasses);
 	}

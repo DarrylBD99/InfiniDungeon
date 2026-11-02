@@ -1,6 +1,7 @@
 #pragma once
 #include "Vector.hpp"
 #include "Dataset.hpp"
+
 #include <string>
 
 namespace WM908_Assessment {
@@ -33,7 +34,7 @@ namespace WM908_Assessment {
 	// Interaction Components
 
 	struct c_PlayerInput {
-		int keyUp, keyDown, keyLeft, keyRight, primaryAttack, secondaryAttack;
+		int keyUp = 0, keyDown = 0, keyLeft = 0, keyRight = 0, primaryAttack = 0, secondaryAttack = 0;
 
 		bool isAttacking = false;
 	};
@@ -81,20 +82,26 @@ namespace WM908_Assessment {
 	// Damage Types
 	
 	struct c_Melee {
-		unsigned int collisionMask;
+		unsigned int collisionMask = 0;
 
 		float instanceDuration = 0.0f;
 		float timeSinceInstanced = 0.0f;
 		unsigned int spritesheetID = 0;
+		float positionOffset = 32.0f;
+		Vec2 collisionBoxSize = { 32.0f };
+		Vec2 collisionBoxOffset = { };
 	};
 
 	struct c_Projectile {
-		unsigned int collisionMask;
+		unsigned int collisionMask = 0;
 
 		unsigned int spritesheetID = 0;
-		Vec2 collisionBoxSize = {};
+		Vec2 collisionBoxSize = { 32.0f };
 		Vec2 collisionBoxOffset = {};
 		bool followNearestEnemy = false;
+		bool rotatesToEntityDirection = true;
+
+		float speed = 200.0f;
 	};
 
 	// Triggers

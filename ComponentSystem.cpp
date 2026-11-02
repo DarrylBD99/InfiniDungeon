@@ -1,18 +1,6 @@
 #include "ComponentSystem.hpp"
 #include <iostream>
 namespace WM908_Assessment {
-
-	// EntityManager Class
-	EntityManager::EntityManager() {
-
-	}
-
-	EntityManager::~EntityManager() {
-		for (Entity* entity : entityDataset) {
-			delete entity;
-		}
-	}
-
 	bool EntityManager::EntityExist(unsigned int id) const {
 		return (entityDataset.Get(id) == nullptr);
 	}
@@ -72,13 +60,13 @@ namespace WM908_Assessment {
 			Vec2 screenPosition = renderer->ConvertWorldToScreen(position->position + collisionBox->offset);
 
 			for (unsigned int y = 0; y < collisionBox->boxSize.GetY(); y++) {
-				int pixelY = screenPosition.GetY() + y;
+				int pixelY = (int)screenPosition.GetY() + y;
 				if (!renderer->IsScreenYWithinCamera(pixelY)) continue;
 
 				for (unsigned int x = 0; x < collisionBox->boxSize.GetX(); x++) {
 					if (x > 0 && x < (collisionBox->boxSize.GetX() - 1) && y > 0 && y < (collisionBox->boxSize.GetY() - 1)) continue;
 
-					int pixelX = screenPosition.GetX() + x;
+					int pixelX = (int)screenPosition.GetX() + x;
 					if (!renderer->IsScreenXWithinCamera(pixelX)) continue;
 
 					canvas.draw(pixelX, pixelY, 255, 0, 0);
@@ -100,20 +88,30 @@ namespace WM908_Assessment {
 		bool isColliding = false;
 
 		for (unsigned int i = 0; i < 2; i++) {
-			Vec2 entityTargetPosition = position;
+			Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
 			
 			// Adds velocity into positions
-			if (i == 0) entityTargetPosition += Vec2{ velocity.GetX(), 0.0f }; // Check X Axis first, then Y axis
-			else entityTargetPosition += Vec2{ 0.0f, velocity.GetY() }; // (prevent kick back behaviour when hugging wall)
+			Vec2 entityTopLeft = position;
+			if (i == 0) entityTopLeft += Vec2{ velocity.GetX(), 0.0f }; // Check X Axis first, then Y axis
+			else entityTopLeft += Vec2{ 0.0f, velocity.GetY() }; // (prevent kick back behaviour when hugging wall)
 
-			Vec2 entityTargetBottomRight = entityTargetPosition + collisionBox->boxSize;
+			Vec2 entityTargetBottomRight = entityTopLeft + collisionBox->boxSize;
+			
+			// Check if space between has collided to prevent speeding bullet from phasing
+			float boxSizeAxis = (i == 0) ? targetCollisionBox->boxSize.GetX() : targetCollisionBox->boxSize.GetY();
+			if (position.DistanceTo(entityTopLeft) > boxSizeAxis) {
+				entityTopLeft.SetX(std::min(entityTopLeft.GetX(), position.GetX()));
+				entityTopLeft.SetY(std::min(entityTopLeft.GetY(), position.GetY()));
 
-			Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
-
+				entityTargetBottomRight.SetX(std::max(entityTargetBottomRight.GetX(), (position + collisionBox->boxSize).GetX()));
+				entityTargetBottomRight.SetY(std::max(entityTargetBottomRight.GetY(), (position + collisionBox->boxSize).GetY()));
+			}
+			
 			// Use Basic AABB to check collision between boxes
-			if (!AABB(entityTargetPosition, entityTargetBottomRight, targetPosition, targetBottomRight)) continue;
+			if (!AABB(entityTopLeft, entityTargetBottomRight, targetPosition, targetBottomRight)) continue;
 			isColliding = true; // Toggles on if collision exists in either direction
 
+			if (!subtractVelocity) continue;
 			if (i % 2 == 0) { // Set New Position X Axis
 				float newPositionX = position.GetX();
 
@@ -401,6 +399,11 @@ namespace WM908_Assessment {
 		if (meleeAttack != nullptr) {
 			attackSystem.InstanceMeleeAttack(entityID, meleeAttack, position->position, direction->facing, entityManager, positionSystem, spriteSystem, collisionSystem);
 		}
+
+		c_Projectile* projectile = attackSystem.GetProjectile(entityID);
+		if (projectile != nullptr) {
+			attackSystem.InstanceProjectile(entityID, projectile, position->position, direction->facing, entityManager, positionSystem, movementSystem, spriteSystem, collisionSystem);
+		}
 	}
 
 	void s_PlayerInput::Update(unsigned int datasetSize,
@@ -501,40 +504,78 @@ namespace WM908_Assessment {
 		s_Sprites& spriteSystem,
 		s_Collisions& collisionSystem)
 	{
-		Vec2 meleePosition = {};
+		Vec2 meleePosition = { 0.0f, 1.0f };
 		
 		switch (facing)
 		{
-		case Direction::Down:
-			meleePosition.SetY(1.0f);
-			break;
 		case Direction::Right:
-			meleePosition.SetX(1.0f);
+			meleePosition = meleePosition.RotateDeg(-90.0f);
 			break;
 		case Direction::Left:
-			meleePosition.SetX(-1.0f);
+			meleePosition = meleePosition.RotateDeg(90.0f);
 			break;
 		case Direction::Up:
-			meleePosition.SetY(-1.0f);
+			meleePosition = meleePosition.RotateDeg(180.0f);
 			break;
 		default:
 			break;
 		}
 
-		meleePosition = (meleePosition * Renderer::GRID_SIZE / 2) + entityPosition;
+		meleePosition = (meleePosition * meleeAttack->positionOffset) + entityPosition;
 		unsigned int attackEntityID = entityManager.AppendEntity();
 		positionSystem.AddComponent(attackEntityID, meleePosition);
-		collisionSystem.AddCollisionBox(attackEntityID, {}, 0, meleeAttack->collisionMask);
+		collisionSystem.AddCollisionBox(attackEntityID, meleeAttack->collisionBoxSize, meleeAttack->collisionBoxOffset, 0, meleeAttack->collisionMask);
 		c_Sprite* sprite = spriteSystem.AddSprite(attackEntityID, meleeAttack->spritesheetID, 2);
 		sprite->facing = facing;
 
-		meleeInstanceEntityID.SetValue(entityManager.GetEntityData(entityID), attackEntityID);
+		attackInstanceEntityID.SetValue(entityManager.GetEntityData(entityID), attackEntityID);
 		meleeAttack->timeSinceInstanced = 0.0f;
+	}
+
+	void s_Attacks::InstanceProjectile(const unsigned int entityID,
+		c_Projectile* projectile,
+		const Vec2 entityPosition,
+		const Direction facing,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Movement& movementSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem)
+	{
+		Vec2 rangedDirection = { 0.0f, 1.0f };
+
+		switch (facing)
+		{
+		case Direction::Right:
+			rangedDirection = rangedDirection.RotateDeg(-90.0f);
+			break;
+		case Direction::Left:
+			rangedDirection = rangedDirection.RotateDeg(90.0f);
+			break;
+		case Direction::Up:
+			rangedDirection = rangedDirection.RotateDeg(180.0f);
+			break;
+		default:
+			break;
+		}
+
+		unsigned int attackEntityID = entityManager.AppendEntity();
+		positionSystem.AddComponent(attackEntityID, entityPosition);
+		c_Movement* movement = movementSystem.AddComponent(attackEntityID, projectile->speed);
+		movement->velocity = rangedDirection;
+		
+		collisionSystem.AddCollisionBox(attackEntityID, projectile->collisionBoxSize, projectile->collisionBoxOffset, 0, projectile->collisionMask);
+		c_Sprite* sprite = spriteSystem.AddSprite(attackEntityID, projectile->spritesheetID, 2);
+
+		if (projectile->rotatesToEntityDirection) sprite->facing = facing;
+
+		attackInstanceEntityID.SetValue(entityManager.GetEntityData(entityID), attackEntityID);
+
 	}
 
 	void s_Attacks::Update(unsigned int datasetSize, float deltaTime) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			Entity* parent = meleeInstanceEntityID.Get(entityID);
+			Entity* parent = attackInstanceEntityID.Get(entityID);
 			if (parent == nullptr) continue;
 
 			unsigned int parentEntityID = parent->GetEntityID();
@@ -546,20 +587,35 @@ namespace WM908_Assessment {
 		}
 	}
 
-	void s_Attacks::DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
+	void s_Attacks::DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer, const s_Position& positionSystem, const s_Movement& movementSystem, const s_Collisions& collisionSystem) {
 		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			Entity* parent = meleeInstanceEntityID.Get(entityID);
+			Entity* parent = attackInstanceEntityID.Get(entityID);
 			if (parent == nullptr) continue;
 
 			unsigned int parentEntityID = parent->GetEntityID();
 
 			c_Melee* meleeAttack = GetMelee(parentEntityID);
+			c_Projectile* projectile = GetProjectile(parentEntityID);
+
 			if (meleeAttack != nullptr) {
 				if (meleeAttack->timeSinceInstanced < meleeAttack->instanceDuration) continue;
-				meleeInstanceEntityID.SetValue(nullptr, entityID);
-				unloadedEntities[unloadEntityCount] = entityID;
-				unloadEntityCount++;
-			}
+
+			} else if (projectile != nullptr) {
+				c_Position* position = positionSystem.GetComponent(entityID);
+				if (position == nullptr) continue;
+
+				c_Movement* movement = movementSystem.GetComponent(entityID);
+				if (movement == nullptr) continue;
+
+				bool isColliding = collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, movement->velocity, false);
+				bool isOnScreen = renderer->IsWorldPositionWithinCamera(position->position);
+
+				if (!isColliding && isOnScreen) continue;
+			} else continue;
+
+			attackInstanceEntityID.SetValue(nullptr, entityID);
+			unloadedEntities[unloadEntityCount] = entityID;
+			unloadEntityCount++;
 		}
 	}
 }
