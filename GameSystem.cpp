@@ -260,10 +260,10 @@ namespace WM908_Assessment {
 	void GameSystem::SetFPS(float deltaTime) {
 		frameCount++;
 		elapsed += deltaTime;
-		if (elapsed >= 0.1f) {
+		if (elapsed >= 0.5f) {
 			currentFPS = (int)GetFPS(frameCount, elapsed);
 			frameCount = 0;
-			elapsed = 0.0f;
+			elapsed -= 0.5f;
 		}
 	}
 
