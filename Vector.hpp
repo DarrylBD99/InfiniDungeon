@@ -19,6 +19,8 @@ public:
 	Vec2 Rotate(float angleRad) const;
 	Vec2 RotateDeg(float angleDeg) const;
 
+	void abs();
+
 	float DotProduct(const Vec2& target) const;
 	float CrossProduct(const Vec2& target) const;
 

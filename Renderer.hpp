@@ -6,38 +6,17 @@
 namespace WM908_Assessment {
 	class Renderer {
 	private:
-		const std::string SPRITESHEET_FILE = "res/Spritesheet.png";
+		const std::string SPRITESHEET_FILE = "res/Spritesheet.bin";
+		const std::string PALETTE_FILE = "res/Palette.png";
 		Vec2 cameraWorldPosition;
 
 		GamesEngineeringBase::Window& canvas;
-		GamesEngineeringBase::Image* spritesheet;
+		uint8_t** colorPalette = nullptr;
+
+		uint16_t spritesheetHeight = 0, spritesheetWidth = 0;
+		uint8_t* spritesheetData = nullptr;
+		
 		unsigned int gridHeight, gridWidth;
-
-		void DrawPixelUp(
-			unsigned int gridPosX,
-			unsigned int gridPosY,
-			unsigned int screenPosX,
-			unsigned int screenPosY,
-			unsigned int screenWidth,
-			int renderWidth,
-			int renderHeight,
-			int clippedX,
-			int clippedY,
-			bool flipH,
-			bool flipV);
-
-		void DrawPixelDown(
-			unsigned int gridPosX,
-			unsigned int gridPosY,
-			unsigned int screenPosX,
-			unsigned int screenPosY,
-			unsigned int screenWidth,
-			int renderWidth,
-			int renderHeight,
-			int clippedX,
-			int clippedY,
-			bool flipH,
-			bool flipV);
 	public:
 		const unsigned int
 			cameraWidth = 383,
@@ -49,7 +28,7 @@ namespace WM908_Assessment {
 		Renderer(GamesEngineeringBase::Window& canvas_);
 		~Renderer();
 
-		void DrawCameraBackground(unsigned char r, unsigned char g, unsigned char b);
+		void DrawCameraBackground(unsigned int colorPaletteIndex);
 
 		void DrawFromSpritesheetIDScreenPosition(
 			const Vec2& screenPosition,

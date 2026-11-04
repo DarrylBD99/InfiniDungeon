@@ -1,21 +1,25 @@
 #include "Renderer.hpp"
 #include <iostream>
+#include "Decoder.hpp"
 
 namespace WM908_Assessment {
 	Renderer::Renderer(GamesEngineeringBase::Window& canvas_) : canvas(canvas_) {
-		spritesheet = new GamesEngineeringBase::Image();
-		spritesheet->load(SPRITESHEET_FILE);
+		// Get Spritesheet Data
+		spritesheetData = Decoder::ReadSpritesheetData(SPRITESHEET_FILE, spritesheetWidth, spritesheetHeight, colorPalette);
 
-		gridHeight = spritesheet->height / GRID_SIZE;
-		gridWidth = spritesheet->width / GRID_SIZE;
+		gridHeight = spritesheetHeight / GRID_SIZE;
+		gridWidth = spritesheetWidth / GRID_SIZE;
 	}
 
 	Renderer::~Renderer() {
-		delete spritesheet;
+		delete[] spritesheetData;
 	}
 
-	void Renderer::DrawCameraBackground(unsigned char r, unsigned char g, unsigned char b) {
+	void Renderer::DrawCameraBackground(unsigned int colorPaletteIndex) {
 		unsigned char* screenPixel = canvas.getBackBuffer();
+
+		// Get Pixel Color
+		unsigned char* pixelColor = colorPalette[colorPaletteIndex];
 
 		// Always use the actual canvas width for buffer indexing
 		const unsigned int screenWidth = canvas.getWidth();
@@ -34,10 +38,10 @@ namespace WM908_Assessment {
 			screenPixel = canvas.getBackBuffer() + index;
 
 			for (unsigned int x = screenLeft; x < screenRight; x++) {
-				if (screenPixel[0] == 0 && screenPixel[1] == 0 && screenPixel[2] == 0) {
-					screenPixel[0] = r;
-					screenPixel[1] = g;
-					screenPixel[2] = b;
+				if ((screenPixel[0] | screenPixel[1] | screenPixel[2]) == 0) {
+					screenPixel[0] = pixelColor[0];
+					screenPixel[1] = pixelColor[1];
+					screenPixel[2] = pixelColor[2];
 				}
 
 				screenPixel += 3;
@@ -46,15 +50,16 @@ namespace WM908_Assessment {
 	}
 
 	void Renderer::DrawFromSpritesheetIDScreenPosition(const Vec2& screenPosition, const unsigned int gridID, const Vec2& offset, Direction facing, bool flipH, bool flipV, bool insideCamera) {
-		// New render code that is 2.5x faster (thank you Immie)
-		// Some modification needed to be made to work with my existing camera system.
-		// Original code: https://github.com/im-e/Cryptmarch/blob/main/src/Rendering/Graphics.cpp
 		unsigned int screenHeight = canvas.getHeight(), screenWidth = canvas.getWidth();
-		int screenTop = 0, screenLeft = 0, screenBottom = screenHeight, screenRight = screenWidth;
+		const unsigned int gridPosX = gridID % gridWidth, gridPosY = gridID / gridWidth;
 		int screenPosX = (int)roundf(screenPosition.GetX() + offset.GetX());
 		int screenPosY = (int)roundf(screenPosition.GetY() + offset.GetY());
-		unsigned int gridPosX = gridID % gridWidth;
-		unsigned int gridPosY = gridID / gridWidth;
+
+		// New render code that is 2x faster (thank you Immie)
+		// Some modification needed to be made to work with camera system, rotations and spritesheet code
+		// Please check out his original work: https://github.com/im-e/Cryptmarch/blob/main/src/Rendering/Graphics.cpp
+
+		int screenTop = 0, screenLeft = 0, screenBottom = screenHeight, screenRight = screenWidth;
 
 		// Use camera properties if inside camera is true
 		if (insideCamera) {
@@ -64,10 +69,10 @@ namespace WM908_Assessment {
 		}
 		
 		// Check if image is completely out of bounds
-		if (screenPosX >= screenRight || screenPosY >= screenBottom || screenPosX + GRID_SIZE <= screenLeft || screenPosY + GRID_SIZE <= screenTop) return;
+		if (screenPosX >= screenRight || screenPosY >= screenBottom || screenPosX + (int)GRID_SIZE <= screenLeft || screenPosY + (int)GRID_SIZE <= screenTop) return;
 		
-		if (spritesheet->data == nullptr) return;
-		
+		if (spritesheetData == nullptr) return;
+
 		// Image Clipping Check
 		// Ensure unnecesary draw attempts aren't called at all if pixel is out of bounds
 		int renderWidth = GRID_SIZE, renderHeight = GRID_SIZE;
@@ -93,18 +98,12 @@ namespace WM908_Assessment {
 			renderHeight = screenBottom - screenPosY;
 		}
 
-		int channels = spritesheet->channels;
-		if (channels != 4) { // Channels of image need to be 4 to work (temporary)
-			std::cerr << "Error: Spritesheet Channel Count is not 4" << std::endl;
-			return;
-		}
-
-		// Used for Left and Right facing sprites as they go on the x axis instead of y;
-		const int spriteStride = spritesheet->width * channels;
-
 		for (int y = 0; y < renderHeight; y++) {
 			// Flip horizontal and vertical orientation
 			unsigned int sourceX = 0, sourceY = 0;
+
+			// How many pixels in spritesheet should they jump
+			// Mainly for Left and Right facing sprites as they go on the x axis instead of y;
 			int pixelStep = 0;
 
 			// Rotation Logic
@@ -114,60 +113,59 @@ namespace WM908_Assessment {
 				sourceX = flipH ? GRID_SIZE - 1 - clippedX : clippedX;
 				sourceY = flipV ? GRID_SIZE - 1 - (clippedY + y) : clippedY + y;
 
-				pixelStep = flipH ? -channels : channels;
+				pixelStep = flipH ? -1 : 1;
 				break;
 			}
 			case Direction::Up: {
 				sourceX = flipH ? clippedX : GRID_SIZE - 1 - clippedX;
 				sourceY = flipV ? clippedY + y : GRID_SIZE - 1 - (clippedY + y);
 
-				pixelStep = flipH ? channels : -channels;
+				pixelStep = flipH ? 1 : -1;
 				break;
 			}
 			case Direction::Right: {
 				sourceX = flipH ? clippedY + y : GRID_SIZE - 1 - (clippedY + y);
 				sourceY = flipV ? GRID_SIZE - 1 - clippedX : clippedX;
 
-				pixelStep = flipV ? -spriteStride : spriteStride;
+				pixelStep = flipV ? -(int)spritesheetWidth : spritesheetWidth;
 				break;
 			}
 			case Direction::Left: {
 				sourceX = flipV ? GRID_SIZE - 1 - (clippedY + y) : clippedY + y;
 				sourceY = flipH ? clippedX : GRID_SIZE - 1 - clippedX;
 
-				pixelStep = flipV ? spriteStride : -spriteStride;
+				pixelStep = flipV ? spritesheetWidth : -(int)spritesheetWidth;
 				break;
 			}
 			}
 
 			// Work out pixel data and positions only once before getting x value
-			unsigned char* pixelData = spritesheet->atUnchecked((gridPosX * GRID_SIZE) + sourceX, (gridPosY * GRID_SIZE) + sourceY);
+			uint8_t* pixelIndex = &spritesheetData[((gridPosY * GRID_SIZE) + sourceY) * spritesheetWidth + (gridPosX * GRID_SIZE) + sourceX];
 
-			// Get Screen Position
+			// Get Screen Position to set color directly
 			int index = ((screenPosY + y) * screenWidth + screenPosX) * 3;
 			unsigned char* screenPixel = canvas.getBackBuffer() + index;
 
 			for (int x = 0; x < renderWidth; x++) {
-				unsigned char alpha = pixelData[3];
-				if (alpha > 0) {
-					screenPixel[0] = pixelData[0];
-					screenPixel[1] = pixelData[1];
-					screenPixel[2] = pixelData[2];
+				if (*pixelIndex > 0) {
+					// Get Pixel Color from Color Palette
+					uint8_t* pixelColor = colorPalette[*pixelIndex];
+
+					screenPixel[0] = pixelColor[0];
+					screenPixel[1] = pixelColor[1];
+					screenPixel[2] = pixelColor[2];
 				}
 
 				// Move through spritesheet
-				pixelData += pixelStep;
-				
+				pixelIndex += pixelStep;
+
 				// Move through screen (only need 3 since screen uses RGB instead of RGBA)
 				screenPixel += 3;
 			}
 		}
 
-		// My own draw code that isn't as obsolete, but is slower
+		// My newer draw code that isn't as obsolete, but is slower
 		//
-		//const unsigned int gridPosX = gridID % gridWidth;
-		//const unsigned int gridPosY = gridID / gridWidth;
-
 		//for (int gridRow = 0; gridRow < GRID_SIZE; gridRow++) {
 		//	int screenPixelY = screenPosY + gridRow;
 

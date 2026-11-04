@@ -3,7 +3,10 @@
 #include "ComponentSystem.hpp"
 
 #include <iostream>
-#include <fstream>
+#include <random>
+#include <ctime>
+#include <bit>
+#include "Decoder.hpp"
 
 namespace WM908_Assessment {
 	class Room {
@@ -11,56 +14,52 @@ namespace WM908_Assessment {
 		const std::string ROOM_FILE_DIRECTORY = "res/maps/Room_";
 		const std::string FILE_TYPE = ".txt";
 
-		unsigned int width = 12, height = 10;
+		uint8_t width = 0, height = 0;
 		unsigned int worldWidth = Renderer::GRID_SIZE * width, worldHeight = Renderer::GRID_SIZE * height;
 
-		int posX, posY;
 		Vec2 worldPos;
+		int posX = 0, posY = 0;
 
-		Dataset::Array<Entity*>* tileEntities = nullptr;
-		unsigned int** tileIDs = nullptr;
-
-		Room() : posX(0), posY(0) {}
+		Dataset::Array<Entity*>* tileEntities;
+		uint8_t* tileIDs = nullptr;
 
 	public:
-		Room* leftRoom = nullptr;
-		Room* rightRoom = nullptr;
-		Room* topRoom = nullptr;
-		Room* bottomRoom = nullptr;
+		Room(uint8_t roomType, int posX_, int posY_) : posX(posX_), posY(posY){
+			FetchRoomData(roomType);
 
-		Room(int seed, int posX_, int posY_) : posX(posX_), posY(posY_) {
-
-			// Map Data is dependent on x and y position as well as world seed
-			// Wanted to use Squirrel Eiserloh Noise to generate room type and entrances, but requires external API
-			// Ended up using normal integer noise for now.
-			//float noise = Noise::IntegerNoise(seed, posX, posY);
-			//
-			//if (posX == 0 && posY == 0) noise = (noise + 1) / 2;
-			//if (noise <= 0) return;
-			//
-			//unsigned int mapType = roundf(noise * 8);
-
+			worldWidth = Renderer::GRID_SIZE * width;
+			worldHeight = Renderer::GRID_SIZE * height;
 
 			// Create Map
 			worldPos = { (float)posX * worldWidth, (float)posY * worldHeight};
-			CreateTileEntityIDArray();
+			tileEntities = new Dataset::Array<Entity*>(width * height);
 		}
-
+			
 		Vec2 GetWorldPos() const {
 			return worldPos;
 		}
 
-		void FetchRoomData(unsigned int roomIndex) {
-			std::ifstream file((ROOM_FILE_DIRECTORY + std::to_string(roomIndex) + FILE_TYPE));
+		// Players can look over at the corners and may find an empty void until
+		// the player actually enters the current room.
+		// The original purpose of this function is to instead redirect the
+		// freeing to the neighbours of the neighbour
+		// 
+		// Of course, this was scrapped as it will make the game much more expensive.
+		// And since each room has their own neighbours, the logic will just be too complicated.
+		// 
+		// I decided to keep the function here cause the name I gave it is out of pocket
+		// 
+		//void FreeRoomsNeighbouringNeighbourRooms(Room* exception = nullptr) { 
+		//	if (leftRoom != exception) leftRoom->FreeNeighbourRooms(this);
+		//	if (rightRoom != exception) rightRoom->FreeNeighbourRooms(this);
+		//	if (topRoom != exception) topRoom->FreeNeighbourRooms(this);
+		//	if (bottomRoom != exception) bottomRoom->FreeNeighbourRooms(this);
+		//}
 
-			tileIDs = new unsigned int* [height];
-			for (unsigned int y = 0; y < height; y++) {
-				tileIDs[y] = new unsigned int[width];
+		void FetchRoomData(uint8_t roomIndex) {
+			tileIDs = Decoder::ReadRoomData((ROOM_FILE_DIRECTORY + std::to_string(roomIndex) + FILE_TYPE)
+				, width, height);
 
-				for (unsigned int x = 0; x < width; x++) {
-					file >> tileIDs[y][x];
-				}
-			}
 		}
 
 		bool IsMapVisible(const Renderer* renderer) const {
@@ -123,7 +122,8 @@ namespace WM908_Assessment {
 
 		Entity* CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
 			if (tileID > 14) return nullptr; // There exists only 15 types of map tiles
-			
+			if (tileID == 14) tileID = 2; // Assumes entrance tile isn't open, set to wall
+
 			unsigned int entityID = entityManager.AppendEntity();
 			Entity* entity = entityManager.GetEntityData(entityID);
 
@@ -203,44 +203,230 @@ namespace WM908_Assessment {
 					 unsigned int idx = tileY * width + tileX;
 					 if (tileEntities->Get(idx) != nullptr) continue;
 
-					Entity* entity = CreateTileEntity(tileIDs[tileY][tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+					Entity* entity = CreateTileEntity(tileIDs[(tileY * width) + tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 					tileEntities->SetValue(entity, idx);
 				}
 			}
 		}
 
-		void CreateTileEntityIDArray() {
-			tileEntities = new Dataset::Array<Entity*>(width * height);
+		bool IsPlayerInsideRoom(const Vec2& playerPos) {
+			Vec2 distance = playerPos - worldPos;
+			distance.abs();
+
+			return (distance.GetX() > worldHeight / 2 || distance.GetY() > worldHeight / 2);
 		}
 
-		static Room* CreateDemoRoom() {
-			Room* map = new Room();
+		int GetX() {
+			return posX;
+		}
 
-			map->width = 15;
-			map->height = 20;
+		int GetY() {
+			return posY;
+		}
 
-			map->worldWidth = Renderer::GRID_SIZE * map->width;
-			map->worldHeight = Renderer::GRID_SIZE * map->height;
+		void OpenEntrance(Direction direction) {
+			// Allows addition straight to pointer
+			unsigned int dataAdvance = 1;
+			
+			// Duplicate pointer so actual tileIDs doesn't move
+			uint8_t* tileIDs_ = tileIDs;
 
-			map->CreateTileEntityIDArray();
+			// Ensure it doesn't go beyond the array
+			std::size_t loopCount = 0;
 
-			map->FetchRoomData(0);
+			switch (direction)
+			{
+			case Direction::Down: {
+				tileIDs_ += (height - 1) * width;
+				loopCount = width;
+				break;
+			}
+			case Direction::Right: {
+				tileIDs_ += width - 1;
+				dataAdvance = width;
+				loopCount = height;
+				break;
+			}
+			case Direction::Left: {
+				dataAdvance = width;
+				loopCount = height;
+				break;
+			}
+			case Direction::Up: {
+				loopCount = width;
+				break;
+			}
+			}
 
-			return map;
+			// Tile ID 14 is entrance tile
+			for (int i = 0; i < loopCount; i++) {
+				if (*tileIDs_ == 14) *tileIDs_ = 0;
+
+				tileIDs_ += dataAdvance;
+			}
 		}
 	};
 
 	class MapGenerator {
 	private:
-		int seed = 0;
+		int worldSeed = 0;
 		Room* currentRoom = nullptr;
 
+		Room* leftRoom = nullptr;
+		Room* rightRoom = nullptr;
+		Room* topRoom = nullptr;
+		Room* bottomRoom = nullptr;
+
+		// Map Data is dependent on x and y position as well as world seed
+		uint8_t GetRoomTemplate(int posX, int posY) {
+			std::seed_seq seedSequence{ worldSeed, posX, posY };
+			std::mt19937 rng(seedSequence);
+			std::uniform_int_distribution<uint8_t> distribution(1, 8);
+
+			return distribution(rng);
+		}
+
+		// Doesn't load room if no room is inaccessible
+		bool ShouldRoomGenerate(int posX, int posY) {
+			if (CanGenerateEntrances(posX, posY)) return true;
+			
+			if ((GetOpenedEntrances(posX, posY - 1) & 0b0001) != 0) return true; // Is connected to room above
+			if ((GetOpenedEntrances(posX + 1, posY) & 0b0010) != 0) return true; // Is connected to room to the right
+			if ((GetOpenedEntrances(posX - 1, posY) & 0b0100) != 0) return true; // Is connected to room to the left
+			if ((GetOpenedEntrances(posX, posY + 1) & 0b1000) != 0) return true; // Is connected to room below
+
+			return false;
+		}
+
+		// Only rooms with a coordinate total divisible by 2 can generate entrances
+		bool CanGenerateEntrances(int posX, int posY) {
+			return (posX % 2 == 0 && posY % 2 == 0);
+		}
+
+		// Each bit corresponds to an entrance (Down, Right, Left, Up)
+		uint8_t GetOpenedEntrances(int posX, int posY) {
+			if (!CanGenerateEntrances(posX, posY)) return 0;
+			
+			std::seed_seq seedSequence{ worldSeed, posX, posY};
+			std::mt19937 rng(seedSequence);
+			std::uniform_int_distribution<unsigned int> distribution(0b0000, 0b1111);
+
+			// Ensures at least 2 entrances are generated at each position
+			uint8_t bitmask;
+			do {
+				bitmask = distribution(rng);
+			} while (std::popcount(bitmask) < 2);
+			return bitmask;
+		}
+
+		// Free Neighbour Rooms as they are out of bounds and (for the most part) shouldn't be seen
+		void FreeNeighbourRooms(Room* exception = nullptr) {
+			if (leftRoom != exception) {
+				delete leftRoom;
+				leftRoom = nullptr;
+			}
+
+			if (rightRoom != exception) {
+				delete rightRoom;
+				rightRoom = nullptr;
+			}
+
+			if (topRoom != exception) {
+				delete topRoom;
+				topRoom = nullptr;
+			}
+
+			if (bottomRoom != exception) {
+				delete bottomRoom;
+				bottomRoom = nullptr;
+			}
+		}
+
 	public:
-		MapGenerator() {}
+		MapGenerator() {
+			std::random_device randomDevice;
+			std::mt19937 rng(randomDevice);
+			std::uniform_int_distribution<int> distribution(-INT_MIN, INT_MAX);
+
+			worldSeed = distribution(rng);
+		}
+
+		MapGenerator(int seed_) {
+			worldSeed = seed_;
+		}
+
 		~MapGenerator() {}
 
+		void StartInfiniteWorldGeneration() {
+			currentRoom = GenerateRoom(0, 0);
+			GenerateNeighbouringRooms(0, 0);
+		}
+
+		void Update(const Vec2& playerPos) {
+			if (currentRoom->IsPlayerInsideRoom(playerPos)) return;
+
+			Room* newRoom = nullptr;
+
+			// Check which room player is inside
+			if (bottomRoom->IsPlayerInsideRoom(playerPos)) newRoom = bottomRoom;
+			else if (rightRoom->IsPlayerInsideRoom(playerPos)) newRoom = rightRoom;
+			else if (leftRoom->IsPlayerInsideRoom(playerPos)) newRoom = leftRoom;
+			else if (topRoom->IsPlayerInsideRoom(playerPos)) newRoom = topRoom;
+
+			// Should be impossible to reach, but it's here just in case some miracle happens
+			if (newRoom == nullptr || newRoom == currentRoom) {
+				std::cerr << "New Room Does Not Exist" << std::endl;
+			}
+
+			FreeNeighbourRooms(newRoom);
+			currentRoom = newRoom;
+
+			GenerateNeighbouringRooms(currentRoom->GetX(), currentRoom->GetY());
+		}
+
 		void GenerateDemoRoom() {
-			currentRoom = Room::CreateDemoRoom();
+			currentRoom = new Room(0, 0, 0);
+		}
+
+		Room* GenerateRoom(int posX, int posY) {
+			if (!ShouldRoomGenerate(posX, posY)) return nullptr;
+			return new Room(GetRoomTemplate(posX, posY), posX, posY);
+		}
+
+		void GenerateNeighbouringRooms(int posX, int posY) {
+			if (bottomRoom == nullptr) bottomRoom = GenerateRoom(posX, posY + 1);
+			if (rightRoom == nullptr) rightRoom = GenerateRoom(posX + 1, posY);
+			if (leftRoom == nullptr) leftRoom = GenerateRoom(posX - 1, posY);
+			if (topRoom == nullptr) topRoom = GenerateRoom(posX, posY - 1);
+			
+			uint8_t entrances = GetOpenedEntrances(posX, posY);
+			if (entrances == 0) {
+				entrances |= GetOpenedEntrances(posX, posY + 1) & 0b1000; // Down
+				entrances |= GetOpenedEntrances(posX + 1, posY) & 0b0100; // Right
+				entrances |= GetOpenedEntrances(posX - 1, posY) & 0b0010; // Left
+				entrances |= GetOpenedEntrances(posX, posY - 1) & 0b0001; // Up
+			}
+
+			// Open entrance tiles
+			if ((entrances & 0b1000) != 0 && bottomRoom != nullptr) {
+				currentRoom->OpenEntrance(Direction::Down);
+				bottomRoom->OpenEntrance(Direction::Up);
+			}
+
+			if ((entrances & 0b0100) != 0 && rightRoom != nullptr) {
+				currentRoom->OpenEntrance(Direction::Right);
+				rightRoom->OpenEntrance(Direction::Left);
+			}
+
+			if ((entrances & 0b0010) != 0 && leftRoom != nullptr) {
+				currentRoom->OpenEntrance(Direction::Left);
+				leftRoom->OpenEntrance(Direction::Right);
+			}
+
+			if ((entrances & 0b0001) != 0 && topRoom!= nullptr) {
+				currentRoom->OpenEntrance(Direction::Up);
+				topRoom->OpenEntrance(Direction::Down);
+			}
 		}
 
 		void UnloadTiles(unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
@@ -252,10 +438,10 @@ namespace WM908_Assessment {
 			renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 			
 			currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-			if (currentRoom->bottomRoom != nullptr) currentRoom->bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-			if (currentRoom->rightRoom != nullptr) currentRoom->rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-			if (currentRoom->leftRoom != nullptr) currentRoom->leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-			if (currentRoom->topRoom != nullptr) currentRoom->topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (bottomRoom != nullptr) bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (rightRoom != nullptr) rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (leftRoom != nullptr) leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+			if (topRoom != nullptr) topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 		}
 	};
 }

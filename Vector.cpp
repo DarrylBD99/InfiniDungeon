@@ -33,6 +33,11 @@ float Vec2::GetAngle() const {
 	return atan2(y, x);
 }
 
+void Vec2::abs() {
+	x = std::abs(x);
+	y = std::abs(y);
+}
+
 float Vec2::DotProduct(const Vec2& value) const {
 	return x * value.x + y * value.y;
 }
@@ -49,7 +54,7 @@ Vec2 Vec2::Normalize() const {
 
 bool Vec2::IsNormalized() const {
 	float length = Magnitude();
-	return abs(length - 1.0f) < 0.0001f;
+	return std::abs(length - 1.0f) < 0.0001f;
 }
 
 float Vec2::Magnitude() const {

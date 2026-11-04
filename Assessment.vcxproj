@@ -142,6 +142,7 @@
     <ClCompile Include="Base.cpp" />
     <ClCompile Include="ComponentSystem.cpp" />
     <ClCompile Include="Dataset.hpp" />
+    <ClCompile Include="Decoder.cpp" />
     <ClCompile Include="MapGenerator.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="GameSystem.cpp" />
@@ -150,6 +151,7 @@
   <ItemGroup>
     <ClInclude Include="Component.hpp" />
     <ClInclude Include="ComponentSystem.hpp" />
+    <ClInclude Include="Decoder.hpp" />
     <ClInclude Include="Entity.hpp" />
     <ClInclude Include="GamesEngineeringBase.h" />
     <ClInclude Include="MapGenerator.hpp" />

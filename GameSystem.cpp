@@ -328,7 +328,7 @@ namespace WM908_Assessment {
 			}
 		}
 
-		renderer->DrawCameraBackground(33, 49, 18);
+		renderer->DrawCameraBackground(1);
 		DisplayFPS();
 		DisplayPlayerData();
 	}
