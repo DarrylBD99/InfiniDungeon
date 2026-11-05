@@ -39,6 +39,9 @@
     <ClCompile Include="ComponentSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Decoder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="GamesEngineeringBase.h">
@@ -76,6 +79,9 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="res\maps\Room_0.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="res\maps\Room_1.txt">
       <Filter>Resource Files</Filter>
     </Text>
   </ItemGroup>

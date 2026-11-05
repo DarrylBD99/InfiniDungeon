@@ -63,7 +63,5 @@ namespace WM908_Assessment {
 		int ConvertWorldToScreenY(const int worldPositionY) const;
 		Vec2 GetCameraBounds() const;
 		Vec2 GetCameraWorldPosition() const;
-
-		void UpdateAnimationFrame(float deltaTime, c_AnimatedSprite* animatedSprite);
 	};
 }

@@ -28,7 +28,7 @@ namespace WM908_Assessment {
 		Vec2 velocity;
 		float speed = 0.0f;
 
-		bool subtractVelocityOnCollision = true;
+		bool phaseThroughCollision = true;
 	};
 
 	// Interaction Components
@@ -46,11 +46,17 @@ namespace WM908_Assessment {
 	// Data Components
 
 	struct c_Health {
-		unsigned int current, max;
+		unsigned int current = 0, max = 0;
+
+		float passiveRegenerationRate = 0.0f;
+		float passiveRegenerationCounter = 0.0f;
 	};
 
 	struct c_Mana {
-		unsigned int current, max;
+		unsigned int current = 0, max = 0;
+
+		float passiveRegenerationRate = 0.0f;
+		float passiveRegenerationCounter = 0.0f;
 	};
 
 	enum CollectableType {
@@ -97,6 +103,11 @@ namespace WM908_Assessment {
 		float positionOffset = 32.0f;
 		Vec2 collisionBoxSize = { 32.0f };
 		Vec2 collisionBoxOffset = { };
+
+		unsigned int manaConsume = 0;
+		unsigned int damageCount = 1;
+
+		Dataset::Array<unsigned int> damagedEntities{ 0 };
 	};
 
 	struct c_Projectile {
@@ -111,6 +122,8 @@ namespace WM908_Assessment {
 		bool rotatesToEntityDirection = true;
 
 		float speed = 200.0f;
+		unsigned int manaConsume = 0;
+		unsigned int damageCount = 1;
 	};
 
 	// Triggers
@@ -121,19 +134,19 @@ namespace WM908_Assessment {
 	};
 
 	struct c_PressTrigger {
-		unsigned int* affectedEntity;
+		Dataset::Array<unsigned int> affectedEntity;
 	};
 
 	struct c_InteractTrigger {
-		unsigned int* affectedEntity;
+		Dataset::Array<unsigned int> affectedEntity;
 	};
 
 	struct c_DeathTrigger {
-		unsigned int* affectedEntity;
+		Dataset::Array<unsigned int> affectedEntity;
 	};
 
 	struct c_LinkTrigger {
-		unsigned int* affectedEntity;
+		Dataset::Array<unsigned int> affectedEntity;
 	};
 
 	// Collision Components
@@ -208,13 +221,12 @@ namespace WM908_Assessment {
 	class c_AnimatedSprite {
 	private:
 		static constexpr unsigned int MAX_ANIMATIONS = 16;
-		
-		unsigned int numberOfAnimations = 0;
-		unsigned int* animationFrameCount = new unsigned int[MAX_ANIMATIONS];
-		unsigned int* animationIsLoop = new unsigned int[MAX_ANIMATIONS];
-		unsigned int* animationCanOverwrite = new unsigned int[MAX_ANIMATIONS];
 
-		unsigned int** animations = new unsigned int* [MAX_ANIMATIONS];
+		Dataset::Array<unsigned int> frameCount{ MAX_ANIMATIONS };
+		Dataset::Array<unsigned int> animationIsLoop{ MAX_ANIMATIONS };
+		Dataset::Array<unsigned int> animationCanOverwrite{ MAX_ANIMATIONS };
+
+		Dataset::Array<unsigned int*> animations{ MAX_ANIMATIONS };
 
 	public:
 		unsigned int drawLayer = 0;
@@ -232,50 +244,45 @@ namespace WM908_Assessment {
 		Vec2 offset = { 0, 0 };
 
 		unsigned int GetNumberOfAnimations() const {
-			return numberOfAnimations;
+			return animations.GetSize();
 		}
 
 		unsigned int GetCurrentFrameID() const {
-			return animations[currentAnimation][animationFrameIndex];
+			return animations.Get(currentAnimation)[animationFrameIndex];
 		}
 		
 		unsigned int GetCurrentAnimationFrameCount() const {
-			return animationFrameCount[currentAnimation];
+			return frameCount.Get(currentAnimation);
 		}
 
 		bool IsCurrentAnimationLoop() const {
-			return animationIsLoop[currentAnimation];
+			return animationIsLoop.Get(currentAnimation);
 		}
 
 		bool CanOverwriteCurrentAnimation() const {
-			return animationCanOverwrite[currentAnimation];
+			return animationCanOverwrite.Get(currentAnimation);
 		}
 
 		void AddAnimation(unsigned int frames[], unsigned int numberOfFrames, bool isLoop = false, bool canOverwrite = true) {
-			if (numberOfAnimations >= MAX_ANIMATIONS) return;
+			unsigned int numberOfAnimations = animations.GetSize();
+			if (numberOfAnimations >= MAX_ANIMATIONS || numberOfFrames == 0 || frames == nullptr) return;
 
-			animationFrameCount[numberOfAnimations] = numberOfFrames;
-			animationIsLoop[numberOfAnimations] = isLoop;
-			animationCanOverwrite[numberOfAnimations] = canOverwrite;
+			frameCount.SetValue(numberOfFrames, numberOfAnimations);
+			animationIsLoop.SetValue(isLoop, numberOfAnimations);
+			animationCanOverwrite.SetValue(canOverwrite, numberOfAnimations);
 
-			unsigned int* framesTemp = new unsigned int[numberOfFrames];
+			unsigned int* framesArray = new unsigned int[numberOfFrames];
+
 			for (unsigned int i = 0; i < numberOfFrames; i++) {
-				framesTemp[i] = frames[i];
+				framesArray[i] = frames[i];
 			}
-			animations[numberOfAnimations] = framesTemp;
-
-			numberOfAnimations++;
+			animations.SetValue(framesArray, animations.GetSize());
 		}
 
 		~c_AnimatedSprite() {
-			for (unsigned int i = 0; i < numberOfAnimations; i++) {
-				delete[] animations[i];
+			for (unsigned int* animation : animations) {
+				delete[] animation;
 			}
-
-			delete[] animations;
-			delete[] animationFrameCount;
-			delete[] animationIsLoop;
-			delete[] animationCanOverwrite;
 		}
 	};
 

@@ -27,7 +27,7 @@ namespace WM908_Assessment {
 
 		Vec2 cameraBounds;
 
-		unsigned int* playerEntity = new unsigned int[2];
+		Dataset::Array<unsigned int> playerEntity = Dataset::Array<unsigned int>(0);
 		unsigned int numberOfPlayers = 1;
 
 		const std::string PLAYER_DATA_TEXT = "Player %d\nHealth:";
@@ -57,8 +57,9 @@ namespace WM908_Assessment {
 		void SetFPS(float deltaTime);
 		void DisplayFPS();
 
-		void UnloadEntities(unsigned int entitiesToUnload[], unsigned int unloadEntityCount);
+		void UnloadEntities(Dataset::Array<unsigned int>* entitiesToUnload);
 
+		void LoadWorld(const PlayerClass playerClass[2]);
 		void LoadDemoWorld(const PlayerClass playerClass[2]);
 
 	public:

@@ -164,6 +164,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="res\maps\Room_0.txt" />
+    <Text Include="res\maps\Room_1.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

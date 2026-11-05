@@ -367,25 +367,4 @@ namespace WM908_Assessment {
 	Vec2 Renderer::GetCameraWorldPosition() const {
 		return cameraWorldPosition;
 	}
-
-	void Renderer::UpdateAnimationFrame(float deltaTime, c_AnimatedSprite* animatedSprite) {
-		if (!animatedSprite->isPlaying) return;
-		animatedSprite->timePassed += deltaTime;
-
-		while (animatedSprite->timePassed > animatedSprite->secondsPerFrame) {
-			animatedSprite->animationFrameIndex++;
-			animatedSprite->timePassed -= animatedSprite->secondsPerFrame;
-
-			if (animatedSprite->animationFrameIndex < animatedSprite->GetCurrentAnimationFrameCount()) continue;
-
-			if (animatedSprite->IsCurrentAnimationLoop()) {
-				animatedSprite->animationFrameIndex = 0;
-				continue;
-			}
-			animatedSprite->animationFrameIndex = animatedSprite->GetCurrentAnimationFrameCount() - 1;
-			animatedSprite->isPlaying = false;
-			animatedSprite->timePassed = 0.0f;
-			return;
-		}
-	}
 }

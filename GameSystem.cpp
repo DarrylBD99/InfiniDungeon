@@ -7,10 +7,10 @@ namespace WM908_Assessment {
 		movements.AddComponent(entityID, 150.0f);
 
 		collisions.AddCollisionBox(entityID, Vec2{ 20.0f, 32.0f }, Vec2{ 6.0f, 0.0f }, CollisionLayer::Player, CollisionLayer::Wall);
-		entityData.AddHealth(entityID, 100);
-		entityData.AddMana(entityID, 50);
 		entityData.AddSavable(entityID);
 
+		c_Health* health = entityData.AddHealth(entityID, 100);
+		c_Mana* mana = entityData.AddMana(entityID, 50);
 
 		// Wanted to make it so that way the player can move while attacking at the same time
 		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
@@ -97,6 +97,7 @@ namespace WM908_Assessment {
 			baseFrame = 36;
 			c_Melee* meleeAttack = attacks.AddMelee(entityID, 19, 0.2f, CollisionLayer::Enemy);
 			meleeAttack->positionOffset = (float)Renderer::GRID_SIZE / 1.8f;
+			meleeAttack->damageCount = 3;
 			break;
 		}
 		case PlayerClass::Archer: {
@@ -114,6 +115,10 @@ namespace WM908_Assessment {
 			projectile->collisionBoxOffset = { 9.0f };
 			projectile->rotatesToEntityDirection = false;
 			projectile->followNearestEnemyRange = 120.0f;
+			projectile->manaConsume = 2;
+			projectile->damageCount = 2;
+			//mana->current = 0; // temporary test
+			mana->passiveRegenerationRate = 0.5f;
 			break;
 		}
 		default:
@@ -169,7 +174,7 @@ namespace WM908_Assessment {
 		input->primaryAttack = 'Q';
 		input->secondaryAttack = 'E';
 
-		playerEntity[0] = entityID;
+		playerEntity.Get(0) = entityID;
 	}
 
 	void GameSystem::CreatePlayer2(PlayerClass playerClass) {
@@ -185,7 +190,7 @@ namespace WM908_Assessment {
 		input->primaryAttack = 'U';
 		input->secondaryAttack = 'O';
 
-		playerEntity[1] = entityID;
+		playerEntity.Get(1) = entityID;
 	}
 
 	void GameSystem::CreateNewPlayerEntities(const PlayerClass playerClass[]) {
@@ -203,7 +208,7 @@ namespace WM908_Assessment {
 		for (unsigned int i = 0; i < numberOfPlayers; i++) {
 			if (i % numberOfPlayers > 0) stringOutput += "\n\n";
 
-			unsigned int entityID = playerEntity[i];
+			unsigned int entityID = playerEntity.Get(i);
 			c_Health* health = entityData.GetHealth(entityID);
 			c_Mana* mana = entityData.GetMana(entityID);
 
@@ -221,7 +226,7 @@ namespace WM908_Assessment {
 		Vec2 cameraWorldPos = { 0, 0 };
 		
 		for (unsigned int i = 0; i < numberOfPlayers; i++) {
-			unsigned int entityID = playerEntity[i];
+			unsigned int entityID = playerEntity.Get(i);
 
 			c_Position* position = positions.GetComponent(entityID);
 			
@@ -236,20 +241,18 @@ namespace WM908_Assessment {
 		renderer->SetCameraWorldPosition(cameraWorldPos);
 	}
 
-	void GameSystem::UnloadEntities(unsigned int entitiesToUnload[], unsigned int unloadEntityCount) {
-		entity.RemoveEntities(entitiesToUnload, unloadEntityCount);
-		positions.DeleteComponents(entitiesToUnload, unloadEntityCount);
-		movements.DeleteComponents(entitiesToUnload, unloadEntityCount);
-		directions_4.DeleteComponents(entitiesToUnload, unloadEntityCount);
-		collisions.DeleteCollisionComponents(entitiesToUnload, unloadEntityCount);
-		sprites.DeleteSpriteComponents(entitiesToUnload, unloadEntityCount);
-		inputs.DeleteComponents(entitiesToUnload, unloadEntityCount);
+	void GameSystem::UnloadEntities(Dataset::Array<unsigned int>* entitiesToUnload) {
+		entity.RemoveEntities(entitiesToUnload);
+		positions.DeleteComponents(entitiesToUnload);
+		movements.DeleteComponents(entitiesToUnload);
+		directions_4.DeleteComponents(entitiesToUnload);
+		collisions.DeleteCollisionComponents(entitiesToUnload);
+		sprites.DeleteSpriteComponents(entitiesToUnload);
+		inputs.DeleteComponents(entitiesToUnload);
 		
-		entityData.DeleteDataComponents(entitiesToUnload, unloadEntityCount);
-		triggers.DeleteTriggerComponents(entitiesToUnload, unloadEntityCount);
-		attacks.DeleteAttackComponents(entitiesToUnload, unloadEntityCount);
-
-		delete[] entitiesToUnload;
+		entityData.DeleteDataComponents(entitiesToUnload);
+		triggers.DeleteTriggerComponents(entitiesToUnload);
+		attacks.DeleteAttackComponents(entitiesToUnload);
 	}
 
 	float GameSystem::GetFPS(int frameCount, float deltaTime) {
@@ -275,15 +278,18 @@ namespace WM908_Assessment {
 	// Unload Entities
 	void GameSystem::Unload() {
 		unsigned int datasetSize = entity.GetDatasetSize();
-		unsigned int* entitiesToUnload = new unsigned int[datasetSize];
-		unsigned int unloadEntityCount = 0;
-		positions.UnloadEntities(datasetSize, playerEntity, entitiesToUnload, unloadEntityCount, renderer);
-		mapGenerator->UnloadTiles(entitiesToUnload, unloadEntityCount);
-		
-		attacks.DeleteAttackInstance(datasetSize, entitiesToUnload, unloadEntityCount, positions, movements, collisions);
-		entityData.UnloadEntities(datasetSize, entitiesToUnload, unloadEntityCount);
+		Dataset::Array<unsigned int> entitiesToUnload(datasetSize);
 
-		UnloadEntities(entitiesToUnload, unloadEntityCount);
+		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
+			if (playerEntity.HasData(entityID)) continue;
+
+			positions.UnloadEntities(entityID, &entitiesToUnload, renderer);
+			attacks.DeleteAttackInstance(entityID, datasetSize, &entitiesToUnload, positions, movements, collisions, entityData);
+			entityData.UnloadEntities(entityID, &entitiesToUnload);
+		}
+
+		mapGenerator->UnloadTiles(&entitiesToUnload);
+		UnloadEntities(&entitiesToUnload);
 	}
 
 	void GameSystem::Update(float deltaTime) {
@@ -305,13 +311,15 @@ namespace WM908_Assessment {
 		for (unsigned int entityID = 0; entityID < entity.GetDatasetSize(); entityID++) {
 			inputs.Update(entityID, datasetSize, window, directions_4, entity, positions, movements, entityData, sprites, collisions, attacks);
 			movements.Update(entityID, datasetSize, deltaTime, positions, collisions);
-			entityData.Update(entityID, datasetSize, deltaTime, playerEntity, numberOfPlayers, positions, movements, collisions);
+			entityData.Update(entityID, datasetSize, deltaTime, &playerEntity, numberOfPlayers, positions, movements, collisions);
 
 			directions_4.Update(entityID, movements, sprites);
 			sprites.Update(entityID, deltaTime, renderer);
-			attacks.Update(entityID, deltaTime);
+			attacks.Update(entityID, datasetSize, deltaTime, positions, collisions, entityData);
 		}
 		
+		mapGenerator->Update(renderer->GetCameraWorldPosition());
+
 		UpdateCameraPosition();
 
 		SetFPS(deltaTime);
@@ -333,6 +341,11 @@ namespace WM908_Assessment {
 		DisplayPlayerData();
 	}
 
+	void GameSystem::LoadWorld(const PlayerClass playerClass[]) {
+		CreateNewPlayerEntities(playerClass);
+		mapGenerator->StartInfiniteWorldGeneration();
+	}
+
 	void GameSystem::LoadDemoWorld(const PlayerClass playerClass[]) {
 		CreateNewPlayerEntities(playerClass);
 		mapGenerator->GenerateDemoRoom();
@@ -344,7 +357,7 @@ namespace WM908_Assessment {
 
 		// Start new game (Temporary)
 		PlayerClass playerClasses[2] = { PlayerClass::Miner, PlayerClass::Mage };
-
-		LoadDemoWorld(playerClasses);
+		LoadWorld(playerClasses);
+		//LoadDemoWorld(playerClasses);
 	}
 }

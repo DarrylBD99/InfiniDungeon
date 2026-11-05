@@ -1,67 +1,46 @@
 #include "ComponentSystem.hpp"
 #include <iostream>
+#include <cassert>
+
 namespace WM908_Assessment {
 	bool EntityManager::EntityExist(unsigned int id) const {
 		return (entityDataset.Get(id) == nullptr);
 	}
 
 	unsigned int EntityManager::GetDatasetSize() const {
-		return datasetSize;
+		return entityDataset.GetSize();
 	}
 
 	unsigned int EntityManager::AppendEntity() {
-		unsigned int id;
-		for (id = 0; id < entityDataset.maxSize; id++) {
-			if (entityDataset.Get(id) != nullptr) continue;
-
-			if (id >= datasetSize) {
-				datasetSize = id + 1;
-			}
-
-			entityDataset.SetValue(new Entity(id), id);
-			entityDataset.Get(id)->SetEntityID(id);
-			break;
-		}
-
+		unsigned int id = entityDataset.AddToClosestEmptyIndex(new Entity(0));
+		assert(id < entityDataset.GetMaxSize() && "Entity limit (1024) reached");
+		entityDataset.Get(id)->SetEntityID(id);
 		return id;
 	}
 
 	void EntityManager::RemoveEntity(unsigned int id) {
 		entityDataset.RemoveAtIndex(id);
-
-		ResetDatasetSize();
+		entityDataset.ResetSize();
 	}
 
-	void EntityManager::RemoveEntities(unsigned int id[], unsigned int size) {
-		for (unsigned int idx = 0; idx < size; idx++) {
-			entityDataset.RemoveAtIndex(id[idx]);
+	void EntityManager::RemoveEntities(Dataset::Array<unsigned int>* ids) {
+		for (unsigned int id : *ids) {
+			entityDataset.RemoveAtIndex(id);
 		}
-
-		ResetDatasetSize();
+		entityDataset.ResetSize();
 	}
 
 	Entity* EntityManager::GetEntityData(unsigned int entityID) const {
 		return entityDataset.Get(entityID);
 	}
 
-	void EntityManager::ResetDatasetSize() {
-		while (datasetSize > 0 && entityDataset.Get(datasetSize - 1) == nullptr) {
-			datasetSize--;
-		}
-	}
+	void s_Position::UnloadEntities(unsigned int entityID, Dataset::Array<unsigned int>* unloadedEntities, Renderer* renderer) {
+		if (unloadedEntities->HasData(entityID)) return;
 
-	void s_Position::UnloadEntities(unsigned int datasetSize, unsigned int entitiesToIgnore[2], unsigned int* unloadedEntities, unsigned int& unloadEntityCount, Renderer* renderer) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			if (!EntityCanUnload(entityID, entitiesToIgnore, 2)) continue;
+		c_Position* position = GetComponent(entityID);
+		if (position == nullptr || renderer->IsWorldPositionWithinCamera(position->position) || renderer->IsWorldPositionWithinCamera(position->position + Vec2{ (float) renderer->GRID_SIZE })) return;
 
-			if (IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) continue;
-			
-			c_Position* position = GetComponent(entityID);
-			if (position == nullptr || renderer->IsWorldPositionWithinCamera(position->position) || renderer->IsWorldPositionWithinCamera(position->position + Vec2{ (float) renderer->GRID_SIZE })) continue;
-
-			unloadedEntities[unloadEntityCount] = entityID;
-			unloadEntityCount++;
-		}
+		unloadedEntities->SetValue(entityID, unloadedEntities->GetSize());
 	}
 
 	void s_Collisions::DrawCollisionBox(unsigned int entityID, s_Position& positionSystem, Renderer* renderer, GamesEngineeringBase::Window& canvas) const {
@@ -96,14 +75,32 @@ namespace WM908_Assessment {
 			&& entityTopLeft.GetY() < targetBottomRight.GetY() && entityBottomRight.GetY() > targetTopLeft.GetY());
 	}
 
-	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition, Vec2& velocity, bool subtractVelocity) const {
-		bool isColliding = false;
+	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition) const {
+		Vec2 entityTopLeft = position + collisionBox->offset;
+		Vec2 entityTargetBottomRight = entityTopLeft + collisionBox->boxSize;
+		Vec2 targetTopLeft = targetPosition + targetCollisionBox->offset;
+		Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
+
+		// Use Basic AABB to check collision between boxes
+		return AABB(entityTopLeft, entityTargetBottomRight, targetTopLeft, targetBottomRight);
+	}
+
+	void s_Collisions::SubtractVelocity(const unsigned int entityID, const unsigned int targetEntityID, const s_Position& positionSystem, Vec2& velocity) const {
+		c_Position* positionComponent = positionSystem.GetComponent(entityID);
+		c_Position* targetPositionComponent = positionSystem.GetComponent(targetEntityID);
+
+		c_CollisionBox* collisionBox = GetCollisionBox(entityID);
+		c_CollisionBox* targetCollisionBox = GetCollisionBox(targetEntityID);
+
+		Vec2 entityPosition = positionComponent->position + collisionBox->offset;
+		Vec2 targetPosition = targetPositionComponent->position + targetCollisionBox->offset;
 
 		for (unsigned int i = 0; i < 2; i++) {
-			Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
+			Vec2 targetTopLeft = targetPosition;
+			Vec2 targetBottomRight = targetTopLeft + targetCollisionBox->boxSize;
 			
 			// Adds velocity into positions
-			Vec2 entityTopLeft = position;
+			Vec2 entityTopLeft = entityPosition;
 			if (i == 0) entityTopLeft += Vec2{ velocity.GetX(), 0.0f }; // Check X Axis first, then Y axis
 			else entityTopLeft += Vec2{ 0.0f, velocity.GetY() }; // (prevent kick back behaviour when hugging wall)
 
@@ -111,73 +108,75 @@ namespace WM908_Assessment {
 			
 			// Check if space between has collided to prevent speeding bullet from phasing
 			float boxSizeAxis = (i == 0) ? targetCollisionBox->boxSize.GetX() : targetCollisionBox->boxSize.GetY();
-			if (position.DistanceTo(entityTopLeft) > boxSizeAxis) {
-				entityTopLeft.SetX(std::min(entityTopLeft.GetX(), position.GetX()));
-				entityTopLeft.SetY(std::min(entityTopLeft.GetY(), position.GetY()));
 
-				entityTargetBottomRight.SetX(std::max(entityTargetBottomRight.GetX(), (position + collisionBox->boxSize).GetX()));
-				entityTargetBottomRight.SetY(std::max(entityTargetBottomRight.GetY(), (position + collisionBox->boxSize).GetY()));
+			if (entityPosition.DistanceTo(entityTopLeft) > boxSizeAxis) {
+				entityTopLeft.SetX(std::min(entityTopLeft.GetX(), entityPosition.GetX()));
+				entityTopLeft.SetY(std::min(entityTopLeft.GetY(), entityPosition.GetY()));
+
+				entityTargetBottomRight.SetX(std::max(entityTargetBottomRight.GetX(), (entityPosition + collisionBox->boxSize).GetX()));
+				entityTargetBottomRight.SetY(std::max(entityTargetBottomRight.GetY(), (entityPosition + collisionBox->boxSize).GetY()));
 			}
 			
 			// Use Basic AABB to check collision between boxes
-			if (!AABB(entityTopLeft, entityTargetBottomRight, targetPosition, targetBottomRight)) continue;
-			isColliding = true; // Toggles on if collision exists in either direction
+			if (!AABB(entityTopLeft, entityTargetBottomRight, targetTopLeft, targetBottomRight)) continue;
 
-			if (!subtractVelocity) continue;
-			if (i % 2 == 0) { // Set New Position X Axis
-				float newPositionX = position.GetX();
+			if (i == 0) { // Set New Position X Axis
+				float newPositionX = entityPosition.GetX();
 
 				if (velocity.GetX() > 0) newPositionX = targetPosition.GetX() - collisionBox->boxSize.GetX();
 				else if (velocity.GetX() < 0) newPositionX = targetBottomRight.GetX();
 
 				// subtract velocity X based on collision on X Axis
-				velocity.SetX(newPositionX - position.GetX());
+				velocity.SetX(newPositionX - entityPosition.GetX());
 			} else { // Set New Position Y Axis
-				float newPositionY = position.GetY();
+				float newPositionY = entityPosition.GetY();
 
 				if (velocity.GetY() > 0) newPositionY = targetPosition.GetY() - collisionBox->boxSize.GetY();
 				else if (velocity.GetY() < 0) newPositionY = targetBottomRight.GetY();
 
 				// subtract velocity Y based on collision on Y Axis
-				velocity.SetY(newPositionY - position.GetY());
+				velocity.SetY(newPositionY - entityPosition.GetY());
 			}
 		}
-		
-		return isColliding;
 	}
 
-	bool s_Collisions::IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition) const {
-		Vec2 targetBottomRight = targetPosition + targetCollisionBox->boxSize;
+	Dataset::Array<unsigned int> s_Collisions::GetCollidingEntities(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, const Vec2 velocity,const Dataset::Array<unsigned int>* entityToIgnore) const {
+		c_CollisionBox* collisionBox = GetCollisionBox(entityID);
+		if (collisionBox == nullptr) return Dataset::Array<unsigned int>(0);
 
-		Vec2 entityTopLeft = position;
-		Vec2 entityTargetBottomRight = entityTopLeft + collisionBox->boxSize;
-
-		// Use Basic AABB to check collision between boxes
-		return AABB(entityTopLeft, entityTargetBottomRight, targetPosition, targetBottomRight);
-	}
-
-	bool s_Collisions::CheckCollision(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, Vec2& velocity, bool subtractVelocity) const {
 		c_Position* position1 = positionSystem.GetComponent(entityID);
-		
-		if (position1 == nullptr) return false;
+		if (position1 == nullptr) return Dataset::Array<unsigned int>(0);
 
-		bool isColliding = false;
+		unsigned int* collidingEntitiesTemp = new unsigned int[datasetSize];
+		unsigned int collidingEntityCount = 0;
 
 		for (unsigned int otherEntityID = 0; otherEntityID < datasetSize; otherEntityID++) {
+			if (entityToIgnore != nullptr) {
+				if (entityToIgnore->HasData(otherEntityID))
+					continue;
+			}
+
 			if (otherEntityID == entityID) continue;
-			c_Position* position2 = positionSystem.GetComponent(otherEntityID);
-
-			if (position2 == nullptr) continue;
-			c_CollisionBox* collisionBox1 = GetCollisionBox(entityID);
-			c_CollisionBox* collisionBox2 = GetCollisionBox(otherEntityID);
-
-			if (collisionBox1 == nullptr || collisionBox2 == nullptr || !CanCollide(collisionBox1, collisionBox2)) continue;
+			c_Position* positionTarget = positionSystem.GetComponent(otherEntityID);
+			if (positionTarget == nullptr) continue;
 			
-			if (!IsBoxColliding(collisionBox1, collisionBox2, (position1->position + collisionBox1->offset), (position2->position + collisionBox2->offset), velocity, subtractVelocity)) continue;
-			isColliding = true;
+			c_CollisionBox* collisionBoxTarget = GetCollisionBox(otherEntityID);
+			if (collisionBoxTarget == nullptr || !CanCollide(collisionBox, collisionBoxTarget)) continue;
+
+			if (IsBoxColliding(collisionBox, collisionBoxTarget, position1->position + velocity, positionTarget->position)) {
+				collidingEntitiesTemp[collidingEntityCount] = otherEntityID;
+				collidingEntityCount++;
+			}
 		}
 
-		return isColliding;
+		Dataset::Array<unsigned int> collidingEntities(collidingEntityCount);
+
+		for (unsigned int i = 0; i < collidingEntityCount; i++)
+			collidingEntities.SetValue(collidingEntitiesTemp[i], i);
+
+		delete[] collidingEntitiesTemp;
+
+		return collidingEntities;
 	}
 
 	void s_Movement::Update(unsigned int entityID, unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem) {
@@ -188,8 +187,15 @@ namespace WM908_Assessment {
 		if (position == nullptr) return;
 
 		Vec2 velocity = movement->velocity * movement->speed * deltaTime;
-		collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, velocity, movement->subtractVelocityOnCollision);
 
+		if (movement->phaseThroughCollision) {
+			Dataset::Array<unsigned int> collidingEntities = collisionSystem.GetCollidingEntities(datasetSize, entityID, positionSystem, velocity);
+
+			for (unsigned int collidingEntity : collidingEntities) {
+				collisionSystem.SubtractVelocity(entityID, collidingEntity, positionSystem, velocity);
+			}
+		}
+		
 		position->position += velocity;
 	}
 
@@ -233,11 +239,10 @@ namespace WM908_Assessment {
 		if (movement == nullptr) return;
 
 		UpdateDirection(direction, movement);
-		unsigned int animationIdx = GetAnimationIndex(direction, movement);
 
 		c_AnimatedSprite* animatedSprite = spriteSystem.GetAnimatedSprite(entityID);
 		if (animatedSprite != nullptr) {
-			spriteSystem.PlayAnimation(animatedSprite, animationIdx);
+			spriteSystem.PlayAnimation(animatedSprite, GetAnimationIndex(direction, movement));
 		}
 
 		// Wanted to make it so that way the player can move while attacking at the same time
@@ -246,13 +251,13 @@ namespace WM908_Assessment {
 		// 
 		//c_LayeredAnimatedSprite* layeredAnimatedSprite = spriteSystem.GetLayeredAnimatedSprite(entityID);
 		//if (layeredAnimatedSprite != nullptr) {
-		//	spriteSystem.PlayAnimationAll(layeredAnimatedSprite, animationIdx);
+		//	spriteSystem.PlayAnimationAll(layeredAnimatedSprite, GetAnimationIndex(direction, movement));
 		//}
 	}
 
 	void s_Sprites::PlayAnimation(c_AnimatedSprite* animatedSprite, unsigned int animationIdx, unsigned int startFrame) {
 		if (animatedSprite->currentAnimation == animationIdx) return;
-		if (animationIdx > animatedSprite->GetNumberOfAnimations()) return;
+		if (animationIdx >= animatedSprite->GetNumberOfAnimations()) return;
 		if (startFrame >= animatedSprite->GetCurrentAnimationFrameCount()) return;
 
 		if (animatedSprite->isPlaying && !animatedSprite->CanOverwriteCurrentAnimation()) return;
@@ -312,13 +317,34 @@ namespace WM908_Assessment {
 			animatedSpriteComponent->flipV);
 	}
 
+	void s_Sprites::UpdateAnimationFrame(float deltaTime, c_AnimatedSprite* animatedSprite) {
+		if (!animatedSprite->isPlaying) return;
+		animatedSprite->timePassed += deltaTime;
+
+		while (animatedSprite->timePassed > animatedSprite->secondsPerFrame) {
+			animatedSprite->animationFrameIndex++;
+			animatedSprite->timePassed -= animatedSprite->secondsPerFrame;
+
+			if (animatedSprite->animationFrameIndex < animatedSprite->GetCurrentAnimationFrameCount()) continue;
+
+			if (animatedSprite->IsCurrentAnimationLoop()) {
+				animatedSprite->animationFrameIndex = 0;
+				continue;
+			}
+			animatedSprite->animationFrameIndex = animatedSprite->GetCurrentAnimationFrameCount() - 1;
+			animatedSprite->isPlaying = false;
+			animatedSprite->timePassed = 0.0f;
+			return;
+		}
+	}
+
 	void s_Sprites::Update(unsigned int entityID, float deltaTime, Renderer* renderer) {
 		c_AnimatedSprite* animatedSprite = GetAnimatedSprite(entityID);
 		if (animatedSprite != nullptr) {
-			renderer->UpdateAnimationFrame(deltaTime, animatedSprite);
-
+			UpdateAnimationFrame(deltaTime, animatedSprite);
 			return;
 		}
+		
 		// Wanted to make it so that way the player can move while attacking at the same time
 		// Didn't like how it felt and couldn't find a different use case, so I decided to scrap it
 		// I'm keeping the code here just so you know it happened
@@ -328,7 +354,7 @@ namespace WM908_Assessment {
 		//	SyncAnimationLayerFrames(layeredAnimatedSprite);
 		//	
 		//	for (unsigned int i = 0; i < layeredAnimatedSprite->numberOfLayers; i++) {
-		//		renderer->UpdateAnimationFrame(deltaTime, layeredAnimatedSprite->layers[i]);
+		//		UpdateAnimationFrame(deltaTime, layeredAnimatedSprite->layers[i]);
 		//	}
 
 		//	return;
@@ -380,7 +406,7 @@ namespace WM908_Assessment {
 		//}
 	}
 
-	void s_Triggers::DeactivateState(const unsigned int entityID, s_Sprites& spriteSystem) {
+	void s_Triggers::DeactivateState(const unsigned int entityID, s_Sprites& spriteSystem) const {
 		c_ActiveState* activeState = GetActiveState(entityID);
 		if (activeState == nullptr) return;
 		activeState->isActive = false;
@@ -391,8 +417,8 @@ namespace WM908_Assessment {
 	}
 
 	void s_PlayerInput::InstancePrimaryAttack(
-		unsigned int datasetSize,
 		unsigned int entityID,
+		unsigned int datasetSize,
 		s_4Direction& directionSystem,
 		EntityManager& entityManager,
 		s_Position& positionSystem,
@@ -410,7 +436,7 @@ namespace WM908_Assessment {
 
 		c_Melee* meleeAttack = attackSystem.GetMelee(entityID);
 		if (meleeAttack != nullptr) {
-			attackSystem.InstanceMeleeAttack(entityID, meleeAttack, position->position, direction->facing, entityManager, positionSystem, spriteSystem, collisionSystem);
+			attackSystem.InstanceMeleeAttack(entityID, datasetSize, meleeAttack, position->position, direction->facing, entityManager, positionSystem, entityDataSystem, spriteSystem, collisionSystem);
 		}
 
 		c_Projectile* projectile = attackSystem.GetProjectile(entityID);
@@ -485,8 +511,8 @@ namespace WM908_Assessment {
 
 		if (animatedSprite->animationFrameIndex == 1 && input->isAttacking) {
 			InstancePrimaryAttack(
-				datasetSize,
 				entityID,
+				datasetSize,
 				directionSystem,
 				entityManager,
 				positionSystem,
@@ -512,15 +538,24 @@ namespace WM908_Assessment {
 		movement->velocity = velocity.Normalize();
 	}
 
-	void s_Attacks::InstanceMeleeAttack(const unsigned int entityID,
+	void s_Attacks::InstanceMeleeAttack(
+		const unsigned int entityID,
+		const unsigned int datasetSize,
 		c_Melee* meleeAttack,
 		const Vec2 entityPosition,
 		const Direction facing,
 		EntityManager& entityManager,
 		s_Position& positionSystem,
+		s_EntityData& entityDataSystem,
 		s_Sprites& spriteSystem,
 		s_Collisions& collisionSystem)
 	{
+		if (meleeAttack->manaConsume > 0 && !entityDataSystem.DrainMana(entityID, meleeAttack->manaConsume)) {
+			return;
+		}
+
+		meleeAttack->damagedEntities = Dataset::Array<unsigned int>(datasetSize);
+
 		Vec2 meleePosition = { 0.0f, 1.0f };
 		
 		switch (facing)
@@ -562,8 +597,12 @@ namespace WM908_Assessment {
 		s_Sprites& spriteSystem,
 		s_Collisions& collisionSystem)
 	{
-		Vec2 rangedDirection = { 0.0f, 1.0f };
+		if (projectile->manaConsume > 0 && !entityDataSystem.DrainMana(entityID, projectile->manaConsume)) {
+			return;
+		}
 
+		Vec2 rangedDirection = { 0.0f, 1.0f };
+		
 		switch (facing)
 		{
 		case Direction::Right:
@@ -583,6 +622,7 @@ namespace WM908_Assessment {
 		c_Position* position = positionSystem.AddComponent(attackEntityID, entityPosition);
 		c_Movement* movement = movementSystem.AddComponent(attackEntityID, projectile->speed);
 		movement->velocity = rangedDirection;
+		movement->phaseThroughCollision = false;
 
 		c_CollisionBox* collisionBox = collisionSystem.AddCollisionBox(attackEntityID, projectile->collisionBoxSize, projectile->collisionBoxOffset, 0, projectile->collisionMask);
 		c_Sprite* sprite = spriteSystem.AddSprite(attackEntityID, projectile->spritesheetID, 2);
@@ -601,7 +641,14 @@ namespace WM908_Assessment {
 
 	}
 
-	void s_Attacks::Update(unsigned int entityID, float deltaTime) {
+	void s_Attacks::Update(
+		unsigned int entityID,
+		unsigned int datasetSize,
+		float deltaTime,
+		const s_Position& positionSystem,
+		const s_Collisions& collisionSystem,
+		s_EntityData& entityDataSystem
+	) {
 		Entity* parent = attackInstanceEntityID.Get(entityID);
 		if (parent == nullptr) return;
 
@@ -610,50 +657,99 @@ namespace WM908_Assessment {
 		c_Melee* meleeAttack = GetMelee(parentEntityID);
 		if (meleeAttack != nullptr) {
 			meleeAttack->timeSinceInstanced += deltaTime;
+
+			Dataset::Array<unsigned int> collidingEntities = collisionSystem.GetCollidingEntities(datasetSize, entityID, positionSystem, { 0.0f }, &meleeAttack->damagedEntities);
+
+			for (unsigned int collidingEntity : collidingEntities) {
+				if (!entityDataSystem.DamageHealth(collidingEntity, meleeAttack->damageCount)) continue;
+
+				meleeAttack->damagedEntities.SetValue(collidingEntity, meleeAttack->damagedEntities.GetSize());
+			}
 		}
 	}
 
-	void s_Attacks::DeleteAttackInstance(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount, const s_Position& positionSystem, const s_Movement& movementSystem, const s_Collisions& collisionSystem) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			if (ComponentSystem<void>::IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) continue;
+	void s_Attacks::DeleteAttackInstance(
+		unsigned int entityID,
+		unsigned int datasetSize,
+		Dataset::Array<unsigned int>* unloadedEntities,
+		const s_Position& positionSystem,
+		const s_Movement& movementSystem,
+		const s_Collisions& collisionSystem,
+		s_EntityData& entityDataSystem
+	) 
+	{
+		if (unloadedEntities->HasData(entityID)) return;
 
-			Entity* parent = attackInstanceEntityID.Get(entityID);
-			if (parent == nullptr) continue;
+		Entity* parent = attackInstanceEntityID.Get(entityID);
+		if (parent == nullptr) return;
 
-			unsigned int parentEntityID = parent->GetEntityID();
+		unsigned int parentEntityID = parent->GetEntityID();
 
-			c_Melee* meleeAttack = GetMelee(parentEntityID);
-			c_Projectile* projectile = GetProjectile(parentEntityID);
+		c_Melee* meleeAttack = GetMelee(parentEntityID);
+		c_Projectile* projectile = GetProjectile(parentEntityID);
 
-			if (meleeAttack != nullptr) {
-				if (meleeAttack->timeSinceInstanced < meleeAttack->instanceDuration) continue;
+		if (meleeAttack != nullptr) {
+			if (meleeAttack->timeSinceInstanced < meleeAttack->instanceDuration) return;
 
-			} else if (projectile != nullptr) {
-				c_Position* position = positionSystem.GetComponent(entityID);
-				if (position == nullptr) continue;
-
-				c_Movement* movement = movementSystem.GetComponent(entityID);
-				if (movement == nullptr) continue;
-
-				if (!collisionSystem.CheckCollision(datasetSize, entityID, positionSystem, movement->velocity, false)) continue;
-			} else continue;
-
-			attackInstanceEntityID.SetValue(nullptr, entityID);
-			unloadedEntities[unloadEntityCount] = entityID;
-			unloadEntityCount++;
 		}
+		
+		if (projectile != nullptr) {
+			c_Position* position = positionSystem.GetComponent(entityID);
+			if (position == nullptr) return;
+
+			c_Movement* movement = movementSystem.GetComponent(entityID);
+			if (movement == nullptr) return;
+
+			Dataset::Array<unsigned int> collidingEntities = collisionSystem.GetCollidingEntities(datasetSize, entityID, positionSystem);
+			
+			// Deletes and Damage entities when hit
+			if (collidingEntities.GetMaxSize() == 0) return;
+			for (unsigned int collidingEntity : collidingEntities) {
+				entityDataSystem.DamageHealth(collidingEntity, projectile->damageCount);
+			}
+
+		}
+
+		attackInstanceEntityID.SetValue(nullptr, entityID);
+		unloadedEntities->SetValue(entityID, unloadedEntities->GetSize());
 	}
 
-	void s_EntityData::UnloadEntities(unsigned int datasetSize, unsigned int* unloadedEntities, unsigned int& unloadEntityCount) {
-		for (unsigned int entityID = 0; entityID < datasetSize; entityID++) {
-			if (ComponentSystem<void>::IsEntityUnloaded(entityID, unloadedEntities, unloadEntityCount)) continue;
+	void s_EntityData::UnloadEntities(unsigned int entityID, Dataset::Array<unsigned int>* unloadedEntities) {
+		if (unloadedEntities->HasData(entityID)) return;
 
-			c_Collectable* collectable = GetCollectable(entityID);
-			if (collectable == nullptr || !collectable->isCollected) continue;
+		c_Health* health = GetHealth(entityID);
+		c_Collectable* collectable = GetCollectable(entityID);
 
-			unloadedEntities[unloadEntityCount] = entityID;
-			unloadEntityCount++;
-		}
+		if (health != nullptr) {
+			if (health->current > 0) return;
+		} else if (collectable != nullptr) {
+			if (!collectable->isCollected) return;
+		} else return;
+
+		unloadedEntities->SetValue(entityID, unloadedEntities->GetSize());
+	}
+
+	bool s_EntityData::DamageHealth(unsigned int entityID, unsigned int damage) {
+		c_Health* health = GetHealth(entityID);
+
+		if (health == nullptr) return false;
+
+		health->current = std::max(int(health->current - damage), 0);
+
+		return true;
+	}
+
+	bool s_EntityData::DrainMana(unsigned int entityID, unsigned int manaDrained, bool forceDrain) {
+		c_Mana* mana = GetMana(entityID);
+
+		if (mana == nullptr) return false;
+
+		if (int(mana->current - manaDrained) < 0 && !forceDrain) return false;
+		
+		mana->current = std::max(int(mana->current - manaDrained), 0);
+		mana->passiveRegenerationCounter = 0.0f;
+
+		return true;
 	}
 
 	Vec2 s_EntityData::FollowGetNearestEntityPosition(unsigned int datasetSize, float lineOfSight, const Vec2& position, c_CollisionBox* collisionBox, s_Position& positionSystem, s_Collisions& collisionSystem) {
@@ -679,8 +775,33 @@ namespace WM908_Assessment {
 		return closestTargetPos;
 	}
 
-	void s_EntityData::Update(unsigned int entityID, unsigned int datasetSize, float deltaTime, unsigned int* playerIDs, unsigned int numberOfPlayers, s_Position& positionSystem, s_Movement& movementSystem, s_Collisions& collisionSystem) {
-		c_Collectable* collectable = GetCollectable(entityID);
+	void s_EntityData::Update(unsigned int entityID, unsigned int datasetSize, float deltaTime, Dataset::Array<unsigned int>* playerIDs, unsigned int numberOfPlayers, s_Position& positionSystem, s_Movement& movementSystem, s_Collisions& collisionSystem) {
+		c_Health* health = GetHealth(entityID);
+		if (health != nullptr) {
+			if (health->current > health->max) {
+				health->current = health->max;
+			} else if (health->current < health->max && health->passiveRegenerationRate > 0) {
+				health->passiveRegenerationCounter += deltaTime;
+				if (health->passiveRegenerationCounter >= health->passiveRegenerationRate) {
+					health->current += 1;
+					health->passiveRegenerationCounter -= health->passiveRegenerationRate;
+				}
+			}
+		}
+		
+		c_Mana* mana = GetMana(entityID);
+		if (mana != nullptr) {
+			if (mana->current > mana->max) {
+				mana->current = mana->max;
+			}
+			else if (mana->current < mana->max && mana->passiveRegenerationRate > 0) {
+				mana->passiveRegenerationCounter += deltaTime;
+				if (mana->passiveRegenerationCounter >= mana->passiveRegenerationRate) {
+					mana->current += 1;
+					mana->passiveRegenerationCounter -= mana->passiveRegenerationRate;
+				}
+			}
+		}
 
 		c_Position* position = positionSystem.GetComponent(entityID);
 		if (position == nullptr) return;
@@ -688,11 +809,12 @@ namespace WM908_Assessment {
 		c_CollisionBox* collisionBox = collisionSystem.GetCollisionBox(entityID);
 		if (collisionBox == nullptr) return;
 
+		c_Collectable* collectable = GetCollectable(entityID);
 		if (collectable != nullptr) {
 			if (collectable->isCollected) return;
 
 			for (unsigned int i = 0; i < numberOfPlayers; i++) {
-				unsigned int playerID = playerIDs[i];
+				unsigned int playerID = playerIDs->Get(i);
 
 				c_Position* playerPosition = positionSystem.GetComponent(playerID);
 				if (playerPosition == nullptr) continue;
