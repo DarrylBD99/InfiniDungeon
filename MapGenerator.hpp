@@ -3,7 +3,6 @@
 #include "ComponentSystem.hpp"
 
 #include <random>
-#include <ctime>
 #include <bit>
 #include "Decoder.hpp"
 #include <cassert>
@@ -26,7 +25,7 @@ namespace WM908_Assessment {
 	public:
 		Room(uint8_t roomType, int posX_, int posY_);
 
-		//void FreeRoomsNeighbouringNeighbourRooms(Room* exception = nullptr);
+		//void FreeRoomsneighboringneighborRooms(Room* exception = nullptr);
 		void FetchRoomData(uint8_t roomIndex);
 		bool IsMapVisible(const Renderer* renderer) const;
 		bool IsTileVisible(const Renderer* renderer, const c_Position* position) const;
@@ -58,7 +57,7 @@ namespace WM908_Assessment {
 		bool ShouldRoomGenerate(int posX, int posY);
 		bool CanGenerateEntrances(int posX, int posY);
 		uint8_t GetOpenedEntrances(int posX, int posY);
-		void FreeNeighbourRooms(Room* exception = nullptr);
+		void FreeneighborRooms(Room* exception = nullptr);
 	public:
 		MapGenerator();
 		MapGenerator(int seed_);
@@ -67,7 +66,7 @@ namespace WM908_Assessment {
 		void Update(const Vec2& playerPos);
 		void GenerateDemoRoom();
 		Room* GenerateRoom(int posX, int posY);
-		void GenerateNeighbouringRooms(int posX, int posY);
+		void GenerateneighboringRooms(int posX, int posY);
 		void UnloadTiles(Dataset::Array<unsigned int>* unloadedEntities);
 		void CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem);
 	};

@@ -3,7 +3,7 @@
 namespace WM908_Assessment {
 	unsigned int GameSystem::CreatePlayerEntityBase(PlayerClass playerClass) {
 		unsigned int entityID = entity.AppendEntity();
-		directions_4.AddComponent(entityID);
+		directions.Add4Direction(entityID);
 		movements.AddComponent(entityID, 150.0f);
 
 		collisions.AddCollisionBox(entityID, Vec2{ 20.0f, 32.0f }, Vec2{ 6.0f, 0.0f }, CollisionLayer::Player, CollisionLayer::Wall);
@@ -158,6 +158,7 @@ namespace WM908_Assessment {
 
 			animatedSprite->AddAnimation(animationFrames[i], frameCount, isLoop, canOverwrite);
 		}
+
 		return entityID;
 	}
 
@@ -245,7 +246,7 @@ namespace WM908_Assessment {
 		entity.RemoveEntities(entitiesToUnload);
 		positions.DeleteComponents(entitiesToUnload);
 		movements.DeleteComponents(entitiesToUnload);
-		directions_4.DeleteComponents(entitiesToUnload);
+		directions.DeleteDirectionComponents(entitiesToUnload);
 		collisions.DeleteCollisionComponents(entitiesToUnload);
 		sprites.DeleteSpriteComponents(entitiesToUnload);
 		inputs.DeleteComponents(entitiesToUnload);
@@ -284,7 +285,7 @@ namespace WM908_Assessment {
 			if (playerEntity.HasData(entityID)) continue;
 
 			positions.UnloadEntities(entityID, &entitiesToUnload, renderer);
-			attacks.DeleteAttackInstance(entityID, datasetSize, &entitiesToUnload, positions, movements, collisions, entityData);
+			attacks.UnloadDamageBox(entityID, &entitiesToUnload);
 			entityData.UnloadEntities(entityID, &entitiesToUnload);
 		}
 
@@ -308,15 +309,26 @@ namespace WM908_Assessment {
 
 		unsigned int datasetSize = entity.GetDatasetSize();
 
-		for (unsigned int entityID = 0; entityID < entity.GetDatasetSize(); entityID++) {
-			inputs.Update(entityID, datasetSize, window, directions_4, entity, positions, movements, entityData, sprites, collisions, attacks);
-			movements.Update(entityID, datasetSize, deltaTime, positions, collisions);
-			entityData.Update(entityID, datasetSize, deltaTime, &playerEntity, numberOfPlayers, positions, movements, collisions);
+		entityData.UpdateFollowCounter(deltaTime);
 
-			directions_4.Update(entityID, movements, sprites);
+		for (unsigned int entityID = 0; entityID < entity.GetDatasetSize(); entityID++) {
+			inputs.Update(entityID, datasetSize, window, directions, entity, positions, movements, entityData, sprites, collisions, attacks);
+			
+			entityData.UpdateHealth(entityID, deltaTime);
+			entityData.UpdateMana(entityID, deltaTime);
+			entityData.UpdateCollectible(entityID, entity.GetDatasetSize(), positions, collisions);
+			entityData.UpdateFollow(entityID, entity.GetDatasetSize(), positions, movements, collisions);
+			
+			directions.Update(entityID, movements, sprites);
 			sprites.Update(entityID, deltaTime, renderer);
-			attacks.Update(entityID, datasetSize, deltaTime, positions, collisions, entityData);
+
+			attacks.UpdateAttackProximity(entityID, deltaTime, entity, positions, collisions, movements, entityData, sprites);
+			attacks.UpdateDamageBox(entityID, deltaTime, datasetSize, positions, collisions, entityData);
+
+			movements.Update(entityID, datasetSize, deltaTime, positions, collisions);
 		}
+
+		entityData.ResetFollowCounter();
 		
 		mapGenerator->Update(renderer->GetCameraWorldPosition());
 
@@ -326,7 +338,8 @@ namespace WM908_Assessment {
 	}
 
 	void GameSystem::Draw() {
-		for (unsigned int drawLayer = 0; drawLayer < 4; drawLayer++) {
+
+		for (unsigned int drawLayer = 0; drawLayer < 3; drawLayer++) {
 			for (unsigned int entityID = 0; entityID < entity.GetDatasetSize(); entityID++) {
 				sprites.Draw(entityID, drawLayer, positions.GetComponent(entityID), renderer);
 
@@ -357,7 +370,10 @@ namespace WM908_Assessment {
 
 		// Start new game (Temporary)
 		PlayerClass playerClasses[2] = { PlayerClass::Miner, PlayerClass::Mage };
-		LoadWorld(playerClasses);
-		//LoadDemoWorld(playerClasses);
+		//LoadWorld(playerClasses);
+		LoadDemoWorld(playerClasses);
+
+		// Temp Enemy Spawn Test
+		// spawner.SpawnEnemy({ 64, 64 }, entity, positions, movements, sprites, directions, collisions, attacks, entityData, EnemyTypes::Cannon);
 	}
 }

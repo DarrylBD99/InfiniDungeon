@@ -14,13 +14,14 @@ namespace WM908_Assessment {
 
 		s_Position positions;
 		s_Movement movements;
-		s_4Direction directions_4;
+		s_Directions directions;
 		s_Collisions collisions;
 		s_Sprites sprites;
 		s_PlayerInput inputs;
 		s_EntityData entityData;
 		s_Triggers triggers;
 		s_Attacks attacks;
+		s_Spawner spawner;
 
 		Renderer* renderer = new Renderer(window);
 		MapGenerator* mapGenerator = new MapGenerator();

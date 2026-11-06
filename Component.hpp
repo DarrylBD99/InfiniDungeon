@@ -28,7 +28,7 @@ namespace WM908_Assessment {
 		Vec2 velocity;
 		float speed = 0.0f;
 
-		bool phaseThroughCollision = true;
+		bool phaseThroughCollision = false;
 	};
 
 	// Interaction Components
@@ -41,6 +41,10 @@ namespace WM908_Assessment {
 
 	struct c_4Direction {
 		Direction facing;
+	};
+
+	struct c_2Direction {
+		bool isFacingLeft = false;
 	};
 
 	// Data Components
@@ -76,6 +80,16 @@ namespace WM908_Assessment {
 		float lineOfSight = 0.0f;
 
 		Vec2 targetPosition;
+		bool hasTarget = false;
+		bool hasSearched = false;
+	};
+
+	struct c_AttackProximity {
+		float attackRange = 0.0f;
+		Vec2 targetPosition;
+		
+		float attackCooldown = 0.8f;
+		float attackCooldownCounter = attackCooldown;
 	};
 
 	struct c_Savable {
@@ -89,7 +103,10 @@ namespace WM908_Assessment {
 	};
 
 	struct c_Spawner {
-		EnemyTypes type;
+		EnemyTypes type = EnemyTypes::Slime;
+
+		float spawnCooldown = 10.0f;
+		float spawnCooldownCounter = spawnCooldown / 0.7f;
 	};
 
 	// Damage Types
@@ -98,7 +115,6 @@ namespace WM908_Assessment {
 		unsigned int collisionMask = 0;
 
 		float instanceDuration = 0.0f;
-		float timeSinceInstanced = 0.0f;
 		unsigned int spritesheetID = 0;
 		float positionOffset = 32.0f;
 		Vec2 collisionBoxSize = { 32.0f };
@@ -106,8 +122,7 @@ namespace WM908_Assessment {
 
 		unsigned int manaConsume = 0;
 		unsigned int damageCount = 1;
-
-		Dataset::Array<unsigned int> damagedEntities{ 0 };
+		unsigned int enemyManaDrain = 0;
 	};
 
 	struct c_Projectile {
@@ -124,6 +139,22 @@ namespace WM908_Assessment {
 		float speed = 200.0f;
 		unsigned int manaConsume = 0;
 		unsigned int damageCount = 1;
+		unsigned int enemyManaDrain = 0;
+	};
+
+	struct c_DamageBox {
+		float damageCount = 1.0f;
+		bool isOneTime = false;
+		bool isTemporary = false;
+		bool isHit = false;
+
+		float timeMax = 0.0f;
+		float timeCounter = 0.0f;
+		float hitEnemyBuffer = 0.8f;
+		unsigned int manaDrain = 0;
+
+		Dataset::Array<float> damageCounter{};
+		Dataset::Array<unsigned int> damagedEntities{};
 	};
 
 	// Triggers

@@ -16,18 +16,18 @@ namespace WM908_Assessment {
 	// Players can look over at the corners and may find an empty void until
 	// the player actually enters the current room.
 	// The original purpose of this function is to instead redirect the
-	// freeing to the neighbours of the neighbour
+	// freeing to the neighbors of the neighbor
 	// 
 	// Of course, this was scrapped as it will make the game much more expensive.
-	// And since each room has their own neighbours, the logic will just be too complicated.
+	// And since each room has their own neighbors, the logic will just be too complicated.
 	// 
 	// I decided to keep the function here cause the name I gave it is out of pocket
 	// 
-	//void Room::FreeRoomsNeighbouringNeighbourRooms(Room* exception = nullptr) { 
-	//	if (leftRoom != exception) leftRoom->FreeNeighbourRooms(this);
-	//	if (rightRoom != exception) rightRoom->FreeNeighbourRooms(this);
-	//	if (topRoom != exception) topRoom->FreeNeighbourRooms(this);
-	//	if (bottomRoom != exception) bottomRoom->FreeNeighbourRooms(this);
+	//void Room::FreeRoomsneighboringneighborRooms(Room* exception = nullptr) { 
+	//	if (leftRoom != exception) leftRoom->FreeneighborRooms(this);
+	//	if (rightRoom != exception) rightRoom->FreeneighborRooms(this);
+	//	if (topRoom != exception) topRoom->FreeneighborRooms(this);
+	//	if (bottomRoom != exception) bottomRoom->FreeneighborRooms(this);
 	//}
 
 	void Room::FetchRoomData(uint8_t roomIndex) {
@@ -272,8 +272,8 @@ namespace WM908_Assessment {
 		return bitmask;
 	}
 
-	// Free Neighbour Rooms as they are out of bounds and (for the most part) shouldn't be seen
-	void MapGenerator::FreeNeighbourRooms(Room* exception) {
+	// Free neighbor Rooms as they are out of bounds and (for the most part) shouldn't be seen
+	void MapGenerator::FreeneighborRooms(Room* exception) {
 		if (leftRoom != exception) {
 			delete leftRoom;
 			leftRoom = nullptr;
@@ -311,10 +311,11 @@ namespace WM908_Assessment {
 
 	void MapGenerator::StartInfiniteWorldGeneration() {
 		currentRoom = GenerateRoom(0, 0);
-		GenerateNeighbouringRooms(0, 0);
+		GenerateneighboringRooms(0, 0);
 	}
 
 	void MapGenerator::Update(const Vec2& playerPos) {
+		if (currentRoom == nullptr) return;
 		if (currentRoom->IsPlayerInsideRoom(playerPos)) return;
 
 		Room* newRoom = nullptr;
@@ -347,10 +348,10 @@ namespace WM908_Assessment {
 			return;
 		}
 
-		FreeNeighbourRooms(currentRoom);
+		FreeneighborRooms(currentRoom);
 		currentRoom = newRoom;
 
-		GenerateNeighbouringRooms(currentRoom->GetX(), currentRoom->GetY());
+		GenerateneighboringRooms(currentRoom->GetX(), currentRoom->GetY());
 	}
 
 	void MapGenerator::GenerateDemoRoom() {
@@ -362,7 +363,7 @@ namespace WM908_Assessment {
 		return new Room(GetRoomTemplate(posX, posY), posX, posY);
 	}
 
-	void MapGenerator::GenerateNeighbouringRooms(int posX, int posY) {
+	void MapGenerator::GenerateneighboringRooms(int posX, int posY) {
 		if (bottomRoom == nullptr) bottomRoom = GenerateRoom(posX, posY + 1);
 		if (rightRoom == nullptr) rightRoom = GenerateRoom(posX + 1, posY);
 		if (leftRoom == nullptr) leftRoom = GenerateRoom(posX - 1, posY);
@@ -399,7 +400,7 @@ namespace WM908_Assessment {
 	}
 
 	void MapGenerator::UnloadTiles(Dataset::Array<unsigned int>* unloadedEntities) {
-		currentRoom->UnloadTiles(unloadedEntities);
+		if (currentRoom != nullptr) currentRoom->UnloadTiles(unloadedEntities);
 		if (bottomRoom != nullptr) bottomRoom->UnloadTiles(unloadedEntities);
 		if (rightRoom != nullptr) rightRoom->UnloadTiles(unloadedEntities);
 		if (leftRoom != nullptr) leftRoom->UnloadTiles(unloadedEntities);
@@ -410,7 +411,7 @@ namespace WM908_Assessment {
 		Vec2 cameraTopLeft, cameraBottomRight;
 		renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 
-		currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+		if (currentRoom != nullptr) currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 		if (bottomRoom != nullptr) bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 		if (rightRoom != nullptr) rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
 		if (leftRoom != nullptr) leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
