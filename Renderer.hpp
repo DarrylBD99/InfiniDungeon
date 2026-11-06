@@ -15,7 +15,7 @@ namespace WM908_Assessment {
 
 		uint16_t spritesheetHeight = 0, spritesheetWidth = 0;
 		uint8_t* spritesheetData = nullptr;
-		
+
 		unsigned int gridHeight, gridWidth;
 	public:
 		const unsigned int

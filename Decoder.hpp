@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "Dataset.hpp"
 
 namespace Decoder {
     // Read Spritesheet binary file
