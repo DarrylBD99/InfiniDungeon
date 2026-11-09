@@ -5,27 +5,32 @@
 namespace WM908_Assessment {
 	Renderer::Renderer(GamesEngineeringBase::Window& canvas_) : canvas(canvas_) {
 		// Get Spritesheet Data
-		spritesheetData = Decoder::ReadSpritesheetData(SPRITESHEET_FILE, spritesheetWidth, spritesheetHeight, colorPalette);
+		spritesheetData = Decoder::ReadSpritesheetData(SPRITESHEET_FILE, spritesheetWidth, spritesheetHeight, colorPalette, colorPaletteSize);
 
 		gridHeight = spritesheetHeight / GRID_SIZE;
 		gridWidth = spritesheetWidth / GRID_SIZE;
 	}
 
 	Renderer::~Renderer() {
+		delete[] spritesheetData;
 
+		for (uint8_t i = 0; i < colorPaletteSize; i++)
+			delete[] colorPalette[i];
+		delete[] colorPalette;
 	}
 
 	void Renderer::DrawCameraBackground(unsigned int colorPaletteIndex) {
+		// Draw Square within Camera Bounds
+		DrawSquare(colorPaletteIndex, cameraBorderWidth, cameraHeight + cameraBorderWidth, cameraBorderWidth, cameraWidth + cameraBorderWidth);
+	}
+
+	void Renderer::DrawSquare(unsigned int colorPaletteIndex, const unsigned int& screenTop, const unsigned int& screenBottom, const unsigned int& screenLeft, const unsigned int& screenRight) {
 		// Get Pixel Color
 		uint8_t* pixelColor = colorPalette[colorPaletteIndex];
 
 		// Always use the actual canvas width for buffer indexing
 		const unsigned int screenWidth = canvas.getWidth();
 		const unsigned int screenHeight = canvas.getHeight();
-
-		// Camera boundaries
-		const unsigned int screenTop = cameraBorderWidth, screenLeft = cameraBorderWidth,
-							screenRight = cameraWidth + cameraBorderWidth, screenBottom = cameraHeight + cameraBorderWidth;
 
 		for (unsigned int y = screenTop; y < screenBottom; y++) {
 			unsigned char* screenPixel = canvas.getBackBuffer() + ((y * screenWidth) + screenLeft) * 3;
@@ -37,7 +42,7 @@ namespace WM908_Assessment {
 					screenPixel[1] = pixelColor[1];
 					screenPixel[2] = pixelColor[2];
 				}
-				
+
 				screenPixel += 3;
 			}
 		}
@@ -112,11 +117,11 @@ namespace WM908_Assessment {
 
 		int spritesheetIndex = (((gridPosY * GRID_SIZE + pixelStartY) * spritesheetWidth) + (gridPosX * GRID_SIZE + pixelStartX));
 		
-		for (unsigned int gridRow = gridStartRow; gridRow < gridEndRow; gridRow++) {
+		for (int gridRow = gridStartRow; gridRow < gridEndRow; gridRow++) {
 			uint8_t* screenIndex = canvas.getBackBuffer() + ((screenPosY + gridRow) * screenWidth + screenPosX + gridStartCol) * 3;
 			uint8_t* pixelIndex = &spritesheetData[spritesheetIndex];
 
-			for (unsigned int gridCol = gridStartCol; gridCol < gridEndCol; gridCol++) {
+			for (int gridCol = gridStartCol; gridCol < gridEndCol; gridCol++) {
 				if (*pixelIndex > 0) {
 					uint8_t* pixelData = colorPalette[*pixelIndex];
 
@@ -197,7 +202,7 @@ namespace WM908_Assessment {
 	}
 
 	//The first character in the spritesheet is '!', which corresponds to gridID 144. Each character is 18 pixels wide and 32 pixels tall, with a 2-pixel gap between characters. The space character (' ') is represented by an empty space of 8 pixels wide.
-	void Renderer::DrawString(const Vec2& screenPosition, const unsigned char* string) {
+	void Renderer::DrawString(const Vec2& screenPosition, const char* string) {
 		unsigned int screenOffsetX = 0;
 		unsigned int screenOffsetY = 0;
 		
@@ -240,7 +245,7 @@ namespace WM908_Assessment {
 	}
 
 	Vec2 Renderer::ConvertWorldToScreen(const Vec2& worldPosition) const {
-		return worldPosition - cameraWorldPosition + (Vec2{ float(cameraWidth) , float(cameraHeight) } / 2) + Vec2{ (float)cameraBorderWidth };
+		return std::round(worldPosition - cameraWorldPosition + (Vec2{ float(cameraWidth) , float(cameraHeight) } / 2) + Vec2{ (float)cameraBorderWidth });
 	}
 
 	int Renderer::ConvertWorldToScreenX(const int worldPositionX) const {

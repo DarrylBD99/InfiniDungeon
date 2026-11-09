@@ -4,6 +4,7 @@
 #include "Dataset.hpp"
 #include "ComponentSystem.hpp"
 #include "MapGenerator.hpp"
+#include "SaveSystem.hpp"
 
 namespace WM908_Assessment {
 	class GameSystem {
@@ -23,13 +24,16 @@ namespace WM908_Assessment {
 		s_Attacks attacks;
 		s_Spawner spawner;
 
-		Renderer* renderer = new Renderer(window);
-		MapGenerator* mapGenerator = new MapGenerator();
+		Renderer* renderer = nullptr;
+		MapGenerator mapGenerator;
 
 		Vec2 cameraBounds;
 
-		Dataset::Array<unsigned int> playerEntity = Dataset::Array<unsigned int>(0);
-		unsigned int numberOfPlayers = 1;
+		bool reachedEndGoal = false;
+
+		Dataset::Array<unsigned int> playerEntity = Dataset::Array<unsigned int>(2);
+		Dataset::Array<bool> playerInteract = Dataset::Array<bool>(2);
+		Dataset::Array<PlayerClass> playerClasses = Dataset::Array<PlayerClass>(2);
 
 		const std::string PLAYER_DATA_TEXT = "Player %d\nHealth:";
 		
@@ -37,19 +41,20 @@ namespace WM908_Assessment {
 		unsigned int currentFPS = 0, frameCount = 0;
 		float elapsed = 0.0f;
 
-		Vec2 startMapPos_1 = {3, 6};
-		Vec2 startMapPos_2 = {4, 6};
+		const Vec2 startMapPos_1 = {3, 6};
+		const Vec2 startMapPos_2 = {4, 6};
 
+		float scoreSecondCounter = 0.0f;
 
 		// Debug Stuff
 		const float debugKeyBuffer = 0.5f;
 		float debugKeyPressedCounter = debugKeyBuffer;
 		bool showCollisionBoxes = false;
 
-		unsigned int CreatePlayerEntityBase(PlayerClass playerClass);
-		void CreatePlayer1(PlayerClass playerClass);
-		void CreatePlayer2(PlayerClass playerClass);
-		void CreateNewPlayerEntities(const PlayerClass playerClass[2]);
+		unsigned int CreatePlayerEntityBase(PlayerClass playerClass, unsigned int health = 100, unsigned int mana = 50, unsigned int keyCount = 0);
+		void CreatePlayer1(PlayerClass playerClass, Vec2 position, unsigned int health = 100, unsigned int mana = 50, unsigned int keyCount = 0);
+		void CreatePlayer2(PlayerClass playerClass, Vec2 position, unsigned int health = 100, unsigned int mana = 50, unsigned int keyCount = 0);
+		void CreateNewPlayerEntities(const Dataset::Array<PlayerClass> playerClasses, bool player2);
 		void DisplayPlayerData();
 
 		void UpdateCameraPosition();
@@ -58,16 +63,22 @@ namespace WM908_Assessment {
 		void SetFPS(float deltaTime);
 		void DisplayFPS();
 
-		void UnloadEntities(Dataset::Array<unsigned int>* entitiesToUnload);
+		void UnloadEntities(Dataset::Array<unsigned int>& entitiesToUnload);
 
-		void LoadWorld(const PlayerClass playerClass[2]);
-		void LoadDemoWorld(const PlayerClass playerClass[2]);
+		void LoadWorld(int posX = 0, int posY = 0);
+		void LoadDemoWorld();
+
+		GameSystem(GamesEngineeringBase::Window& window_, Renderer* renderer_);
 
 	public:
 		void Unload();
 		void Update(float deltaTime);
 		void Draw();
 
-		GameSystem(GamesEngineeringBase::Window& window_, bool hasPlayer2 = false);
+		bool IsGameOver();
+		bool ReachedEndGoal() { return reachedEndGoal; }
+
+		GameSystem(GamesEngineeringBase::Window& window_, Renderer* renderer_, Dataset::Array<PlayerClass> playerClasses, bool isDemoWorld = false, bool player2 = false);
+		static GameSystem* LoadFromSave(GamesEngineeringBase::Window& window_, Renderer* renderer_);
 	};
 }

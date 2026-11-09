@@ -44,6 +44,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
+    <EnableASAN>true</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -146,6 +147,8 @@
     <ClCompile Include="MapGenerator.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="GameSystem.cpp" />
+    <ClCompile Include="SaveSystem.cpp" />
+    <ClCompile Include="SoundManager.cpp" />
     <ClCompile Include="Vector.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -157,14 +160,35 @@
     <ClInclude Include="MapGenerator.hpp" />
     <ClInclude Include="Renderer.hpp" />
     <ClInclude Include="GameSystem.hpp" />
+    <ClInclude Include="SaveSystem.hpp" />
+    <ClInclude Include="SoundManager.hpp" />
     <ClInclude Include="Vector.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <Media Include="res\sfx\enemy_hit.wav" />
+    <Media Include="res\sfx\menu_select.wav" />
+    <Media Include="res\sfx\player_select.wav" />
+    <Media Include="res\sfx\player_walk.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\Palette.png" />
     <Image Include="res\Spritesheet.png" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="res\maps\Room_0.txt" />
-    <Text Include="res\maps\Room_1.txt" />
+    <None Include="res\maps\Room_0.bin" />
+    <None Include="res\maps\Room_1.bin" />
+    <None Include="res\maps\Room_2.bin" />
+    <None Include="res\maps\Room_3.bin" />
+    <None Include="res\maps\Room_4.bin" />
+    <None Include="res\maps\Room_5.bin" />
+    <None Include="res\maps\Trigger_0.bin" />
+    <None Include="res\maps\Trigger_1.bin" />
+    <None Include="res\maps\Trigger_2.bin" />
+    <None Include="res\maps\Trigger_3.bin" />
+    <None Include="res\maps\Trigger_4.bin" />
+    <None Include="res\maps\Trigger_5.bin" />
+    <None Include="res\Spritesheet.ase" />
+    <None Include="res\Spritesheet.bin" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

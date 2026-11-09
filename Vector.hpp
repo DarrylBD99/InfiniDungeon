@@ -59,3 +59,5 @@ public:
 
 	bool operator==(Vec2 value) const;
 };
+
+Vec2 round(const Vec2& value);

@@ -4,6 +4,7 @@
 #include "Dataset.hpp"
 #include "Renderer.hpp"
 
+#include <random>
 
 namespace WM908_Assessment {
 
@@ -25,7 +26,7 @@ namespace WM908_Assessment {
 		unsigned int AppendEntity();
 		Entity* GetEntityData(unsigned int entityID) const;
 		void RemoveEntity(unsigned int id);
-		void RemoveEntities(Dataset::Array<unsigned int>* ids);
+		void RemoveEntities(Dataset::Array<unsigned int>& ids);
 	};
 
 	template<class C>
@@ -51,16 +52,14 @@ namespace WM908_Assessment {
 			components.SetValue(nullptr, entityID);
 		}
 
-		void DeleteComponents(Dataset::Array<unsigned int>* entityIDs) {
-			for (unsigned int entityID : *entityIDs) {
+		void DeleteComponents(Dataset::Array<unsigned int>& entityIDs) {
+			for (unsigned int entityID : entityIDs) {
 				DeleteComponent(entityID);
 			}
 		}
 
 		~ComponentSystem() {
 			for (C* component : components) {
-				if (component == nullptr) continue;
-
 				delete component;
 			}
 		}
@@ -75,7 +74,10 @@ namespace WM908_Assessment {
 			return component;
 		}
 
-		void UnloadEntities(unsigned int entityID, Dataset::Array<unsigned int>* unloadedEntities, Renderer* renderer);
+		Vec2 GetCenterPosition(unsigned int entityID);
+		Vec2 GetCenterPosition(Vec2 position);
+		Vec2 GetCenterPosition(Vec2 position, c_CollisionBox* collisionBox);
+		void UnloadEntities(unsigned int entityID, Dataset::Array<unsigned int>& unloadedEntities, Renderer* renderer);
 	};
 
 	// I wanted to add different shapes of collisions, but it is much cheaper and simpler to stick to one collision shape
@@ -116,7 +118,7 @@ namespace WM908_Assessment {
 			//collisionCircle.DeleteComponent(entityID);
 		}
 
-		void DeleteCollisionComponents(Dataset::Array<unsigned int>* entityID) {
+		void DeleteCollisionComponents(Dataset::Array<unsigned int>& entityID) {
 			collisionBox.DeleteComponents(entityID);
 			//collisionCircle.DeleteComponents(entityID);
 		}
@@ -129,7 +131,7 @@ namespace WM908_Assessment {
 		bool IsBoxColliding(const c_CollisionBox* collisionBox, const c_CollisionBox* targetCollisionBox, const Vec2& position, const Vec2& targetPosition) const;
 		void SubtractVelocity(const unsigned int entityID, const unsigned int targetEntityID, const s_Position& positionSystem, Vec2& velocity) const;
 		
-		Dataset::Array<unsigned int> GetCollidingEntities(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, const Vec2 velocity = { 0.0f }, const Dataset::Array<unsigned int>* entityToIgnore = nullptr) const;
+		Dataset::Array<unsigned int> GetCollidingEntities(unsigned int datasetSize, unsigned int entityID, const s_Position& positionSystem, const c_Movement* movement) const;
 	};
 
 	class s_Movement : public ComponentSystem<c_Movement> {
@@ -140,7 +142,90 @@ namespace WM908_Assessment {
 
 			return component;
 		}
-		void Update(unsigned int entityID, unsigned int datasetSize, float deltaTime, s_Position& positionSystem, s_Collisions& collisionSystem);
+		void Update(unsigned int entityID, float deltaTime, Dataset::Array<unsigned int> collidingEntities, s_Position& positionSystem, s_Collisions& collisionSystem);
+	};
+
+	class s_Triggers {
+	private:
+		ComponentSystem<c_ActiveState> activeState;
+		ComponentSystem<c_PressTrigger> pressTrigger;
+		ComponentSystem<c_InteractTrigger> interactTrigger;
+		ComponentSystem<c_TriggerKill> triggerKill;
+		ComponentSystem<c_EndGoal> endGoal;
+
+	public:
+		c_ActiveState* AddActiveState(unsigned int entityID, unsigned int roomID, unsigned int triggerID, unsigned int activeStateSprite, bool isActive = true) {
+			c_ActiveState* component = activeState.AddComponent(entityID);
+			component->roomID = roomID;
+			component->triggerID = triggerID;
+			component->activeStateSprite = activeStateSprite;
+			component->isActive = isActive;
+			return component;
+		}
+
+		c_PressTrigger* AddPressTrigger(unsigned int entityID, unsigned int roomID, unsigned int triggerID) {
+			c_PressTrigger* component = pressTrigger.AddComponent(entityID);
+			component->roomID = roomID;
+			component->triggerID = triggerID;
+			return component;
+		}
+
+		c_InteractTrigger* AddInteractTrigger(unsigned int entityID, unsigned int roomID, unsigned int triggerID) {
+			c_InteractTrigger* component = interactTrigger.AddComponent(entityID);
+			component->roomID = roomID;
+			component->triggerID = triggerID;
+			return component;
+		}
+
+		c_EndGoal* AddEndGoal(unsigned int entityID) {
+			return endGoal.AddComponent(entityID);
+		}
+
+		c_TriggerKill* AddTriggerKill(unsigned int entityID) {
+			return triggerKill.AddComponent(entityID);
+		}
+
+		c_ActiveState* GetActiveState(unsigned int entityID) const {
+			return activeState.GetComponent(entityID);
+		}
+
+		c_PressTrigger* GetPressTrigger(unsigned int entityID) const {
+			return pressTrigger.GetComponent(entityID);
+		}
+
+		c_InteractTrigger* GetInteractTrigger(unsigned int entityID) const {
+			return interactTrigger.GetComponent(entityID);
+		}
+
+		c_TriggerKill* GetTriggerKill(unsigned int entityID) const {
+			return triggerKill.GetComponent(entityID);
+		}
+
+		c_EndGoal* GetEndGoal(unsigned int entityID) {
+			return endGoal.GetComponent(entityID);
+		}
+
+		void DeleteTriggerComponent(unsigned int entityID) {
+			activeState.DeleteComponent(entityID);
+			pressTrigger.DeleteComponent(entityID);
+			interactTrigger.DeleteComponent(entityID);
+			triggerKill.DeleteComponent(entityID);
+			endGoal.DeleteComponent(entityID);
+
+		}
+
+		void DeleteTriggerComponents(Dataset::Array<unsigned int>& entityID) {
+			activeState.DeleteComponents(entityID);
+			pressTrigger.DeleteComponents(entityID);
+			interactTrigger.DeleteComponents(entityID);
+			triggerKill.DeleteComponents(entityID);
+			endGoal.DeleteComponents(entityID);
+		}
+
+		bool TriggerAction(const unsigned int entityID);
+		bool UpdatePressTrigger(const unsigned int entityID, Dataset::Array<unsigned int> collidingEntities);
+		void UnloadKillTrigger(const unsigned int entityID, Dataset::Array<unsigned int>& unloadedEntities);
+		bool IsEndGoalReached(const unsigned int entityID);
 	};
 
 	class s_Sprites {
@@ -206,7 +291,7 @@ namespace WM908_Assessment {
 			//layeredAnimatedSprite.DeleteComponent(entityID);
 		}
 
-		void DeleteSpriteComponents(Dataset::Array<unsigned int>* entityID) {
+		void DeleteSpriteComponents(Dataset::Array<unsigned int>& entityID) {
 			sprite.DeleteComponents(entityID);
 			//layeredSprite.DeleteComponents(entityID);
 			animatedSprite.DeleteComponents(entityID);
@@ -226,23 +311,23 @@ namespace WM908_Assessment {
 		void UpdateAnimationFrame(float deltaTime, c_AnimatedSprite* animatedSprite);
 		void Update(unsigned int entityID, float deltaTime, Renderer* renderer);
 
-		void DrawSprite(const c_Sprite* spriteComponent, const c_Position* positionComponent, Renderer* renderer);
+		void DrawSprite(const c_Sprite* spriteComponent, const c_Position* positionComponent, c_ActiveState* activeState, Renderer* renderer);
 		void DrawAnimatedSprite(const c_AnimatedSprite* animatedSpriteComponent, const c_Position* positionComponent, Renderer* renderer);
 
-		void Draw(unsigned int entityID, unsigned int drawLayer, const c_Position* position, Renderer* renderer);
+		void Draw(unsigned int entityID, unsigned int drawLayer, const c_Position* position, c_ActiveState* activeState, Renderer* renderer);
 	};
-
-	class s_Directions;
-	class s_Attacks;
 
 	class s_EntityData {
 	private:
 		ComponentSystem<c_Health> health;
 		ComponentSystem<c_Mana> mana;
+		ComponentSystem<c_KeyCount> keyCount;
 		ComponentSystem<c_Collectable> collectable;
 		ComponentSystem<c_Follow> follow;
-		ComponentSystem<c_Savable> savable;
-
+		ComponentSystem<c_DeathSavable> deathSavable;
+		ComponentSystem<c_NoOutsideCamera> noOutsideCamera;
+		ComponentSystem<c_ScoreIncrease> scoreIncrease;
+		
 		float followUpdateCounter = 0.0f;
 		float runFollowCode = 0.1f;
 
@@ -261,6 +346,10 @@ namespace WM908_Assessment {
 			return component;
 		}
 
+		c_KeyCount* AddKeyCount(unsigned int entityID) {
+			return keyCount.AddComponent(entityID);
+		}
+
 		c_Collectable* AddCollectable(unsigned int entityID, CollectableType collectableType) {
 			c_Collectable* component = collectable.AddComponent(entityID);
 			component->type = collectableType;
@@ -274,8 +363,21 @@ namespace WM908_Assessment {
 			return component;
 		}
 
-		c_Savable* AddSavable(unsigned int entityID) {
-			c_Savable* component = savable.AddComponent(entityID);
+		c_DeathSavable* AddDeathSavable(unsigned int entityID, unsigned int roomID, unsigned int index) {
+			c_DeathSavable* component = deathSavable.AddComponent(entityID);
+			component->roomID = roomID;
+			component->tileIndex = index;
+			return component;
+		}
+
+		c_NoOutsideCamera* AddNoOutsideCamera(unsigned int entityID) {
+			c_NoOutsideCamera* component = noOutsideCamera.AddComponent(entityID);
+			return component;
+		}
+
+		c_ScoreIncrease* AddScoreIncrease(unsigned int entityID, unsigned int scoreCount) {
+			c_ScoreIncrease* component = scoreIncrease.AddComponent(entityID);
+			component->scoreCount = scoreCount;
 			return component;
 		}
 
@@ -287,37 +389,65 @@ namespace WM908_Assessment {
 			return mana.GetComponent(entityID);
 		}
 
+		c_KeyCount* GetKeyCount(unsigned int entityID) const {
+			return keyCount.GetComponent(entityID);
+		}
+
 		c_Collectable* GetCollectable(unsigned int entityID) {
 			return collectable.GetComponent(entityID);
 		}
+
 		c_Follow* GetFollow(unsigned int entityID) {
 			return follow.GetComponent(entityID);
 		}
 
-		bool IsSavable(unsigned int entityID) {
-			return (savable.GetComponent(entityID) != nullptr);
+		c_ScoreIncrease* GetScoreIncrease(unsigned int entityID) {
+			return scoreIncrease.GetComponent(entityID);
+		}
+
+		c_NoOutsideCamera* GetNoOutsideCamera(unsigned int entityID) {
+			return noOutsideCamera.GetComponent(entityID);
+		}
+
+		c_DeathSavable* GetDeathSavable(unsigned int entityID) {
+			return deathSavable.GetComponent(entityID);
 		}
 
 		void DeleteDataComponent(unsigned int entityID) {
 			health.DeleteComponent(entityID);
 			mana.DeleteComponent(entityID);
+			keyCount.DeleteComponent(entityID);
 			follow.DeleteComponent(entityID);
-			savable.DeleteComponent(entityID);
+			deathSavable.DeleteComponent(entityID);
 			collectable.DeleteComponent(entityID);
+			noOutsideCamera.DeleteComponent(entityID);
+			scoreIncrease.DeleteComponent(entityID);
 		}
 
-		void DeleteDataComponents(Dataset::Array<unsigned int>* entityID) {
+		void DeleteDataComponents(Dataset::Array<unsigned int>& entityID) {
 			health.DeleteComponents(entityID);
 			mana.DeleteComponents(entityID);
+			keyCount.DeleteComponents(entityID);
 			follow.DeleteComponents(entityID);
-			savable.DeleteComponents(entityID);
+			deathSavable.DeleteComponents(entityID);
 			collectable.DeleteComponents(entityID);
+			noOutsideCamera.DeleteComponents(entityID);
+			scoreIncrease.DeleteComponents(entityID);
 		}
 
 		bool DamageHealth(unsigned int entityID, unsigned int damage);
 		bool DrainMana(unsigned int entityID, unsigned int manaDrain, bool forceDrain = false);
 		
-		bool FollowGetNearestEntityPosition(
+		bool GetNearestEntity(
+			unsigned int datasetSize,
+			float lineOfSight,
+			const Vec2& centerPosition,
+			const unsigned int collisionLayer,
+			s_Position& positionSystem,
+			s_Collisions& collisionSystem,
+			unsigned int& closestEntityID);
+
+		bool GetNearestEntityPosition(
 			unsigned int datasetSize,
 			float lineOfSight,
 			const Vec2& position,
@@ -326,86 +456,18 @@ namespace WM908_Assessment {
 			s_Collisions& collisionSystem,
 			Vec2& targetCenterPosition);
 
-		void UnloadEntities(unsigned int entityID, Dataset::Array<unsigned int>* unloadedEntities);
+		void UnloadEntities(unsigned int entityID, Dataset::Array<unsigned int>& unloadedEntities);
 		
+		void CheckOutsideCamera(unsigned int entityID, Renderer* renderer, s_Position& positionSystem, s_Movement& movementSystem, s_Collisions& collisionSystem);
 		void UpdateHealth(unsigned int entityID, float deltaTime);
 		void UpdateMana(unsigned int entityID, float deltaTime);
-		void UpdateCollectible(unsigned int entityID, unsigned int datasetSize, s_Position& positionSystem, s_Collisions& collisionSystem);
+		void UpdateCollectible(unsigned int entityID, Dataset::Array<unsigned int> collidingEntities);
 		void UpdateFollow(unsigned int entityID, unsigned int datasetSize, s_Position& positionSystem, s_Movement& movementSystem, s_Collisions& collisionSystem);
-		
+
 		void UpdateFollowCounter(float deltaTime);
 		void ResetFollowCounter();
-	};
 
-	class s_Triggers {
-	private:
-		ComponentSystem<c_ActiveState> activeState;
-		ComponentSystem<c_PressTrigger> pressTrigger;
-		ComponentSystem<c_InteractTrigger> interactTrigger;
-		ComponentSystem<c_DeathTrigger> deathTrigger;
-		ComponentSystem<c_LinkTrigger> linkTrigger;
-
-	public:
-		c_ActiveState* AddActiveState(unsigned int entityID, unsigned int deactiveState, bool isActive = true) {
-			c_ActiveState* component = activeState.AddComponent(entityID);
-			component->deactiveState = deactiveState;
-			return component;
-		}
-
-		c_PressTrigger* AddPressTrigger(unsigned int entityID) {
-			return pressTrigger.AddComponent(entityID);
-		}
-
-		c_InteractTrigger* AddInteractTrigger(unsigned int entityID) {
-			return interactTrigger.AddComponent(entityID);
-		}
-
-		c_DeathTrigger* AddDeathTrigger(unsigned int entityID) {
-			return deathTrigger.AddComponent(entityID);
-		}
-
-		c_LinkTrigger* AddLinkTrigger(unsigned int entityID) {
-			return linkTrigger.AddComponent(entityID);
-		}
-
-		c_ActiveState* GetActiveState(unsigned int entityID) const {
-			return activeState.GetComponent(entityID);
-		}
-
-		c_PressTrigger* GetPressTrigger(unsigned int entityID) const {
-			return pressTrigger.GetComponent(entityID);
-		}
-
-		c_InteractTrigger* GetInteractTrigger(unsigned int entityID) const {
-			return interactTrigger.GetComponent(entityID);
-		}
-
-		c_DeathTrigger* GetDeathTrigger(unsigned int entityID) const {
-			return deathTrigger.GetComponent(entityID);
-		}
-
-		c_LinkTrigger* GetLinkTrigger(unsigned int entityID) const {
-			return linkTrigger.GetComponent(entityID);
-		}
-
-		void DeleteTriggerComponent(unsigned int entityID) {
-			activeState.DeleteComponent(entityID);
-			pressTrigger.DeleteComponent(entityID);
-			interactTrigger.DeleteComponent(entityID);
-			deathTrigger.DeleteComponent(entityID);
-			linkTrigger.DeleteComponent(entityID);
-
-		}
-
-		void DeleteTriggerComponents(Dataset::Array<unsigned int>* entityID) {
-			activeState.DeleteComponents(entityID);
-			pressTrigger.DeleteComponents(entityID);
-			interactTrigger.DeleteComponents(entityID);
-			deathTrigger.DeleteComponents(entityID);
-			linkTrigger.DeleteComponents(entityID);
-		}
-
-		void DeactivateState(const unsigned int entityID, s_Sprites& spriteSystem) const;
+		bool SaveDeathState(unsigned int entityID, Dataset::Array<unsigned int>& unloadedEntities, s_Triggers& triggers);
 	};
 
 	class s_Attacks {
@@ -414,6 +476,8 @@ namespace WM908_Assessment {
 		ComponentSystem<c_Projectile> projectile;
 		ComponentSystem<c_AttackProximity> attackProximity;
 		ComponentSystem<c_DamageBox> damageBox;
+		ComponentSystem<c_Dash> dash;
+		ComponentSystem<c_Immunity> immunity;
 
 	public:
 		c_Melee* AddMelee(unsigned int entityID, unsigned int spritesheetID, float instanceDuration, unsigned int collisionMask = 0) {
@@ -442,10 +506,25 @@ namespace WM908_Assessment {
 			return component;
 		}
 
-		c_DamageBox* AddDamageBox(unsigned int entityID, float damage, bool isOneTime = false) {
+		c_DamageBox* AddDamageBox(unsigned int entityID, unsigned int damage, bool isOneTime = false) {
 			c_DamageBox* component = damageBox.AddComponent(entityID);
 			component->damageCount = damage;
 			component->isOneTime = isOneTime;
+			return component;
+		}
+
+		c_Dash* AddDash(unsigned int entityID, float speed, float duration, unsigned int manaConsume) {
+			c_Dash* component = dash.AddComponent(entityID);
+			component->speed = speed;
+			component->duration = duration;
+			component->manaConsume = manaConsume;
+			return component;
+		}
+
+		c_Immunity* AddImmunity(unsigned int entityID, int maxHits, unsigned int manaConsume) {
+			c_Immunity* component = immunity.AddComponent(entityID);
+			component->maxHits = maxHits;
+			component->manaConsume = manaConsume;
 			return component;
 		}
 
@@ -465,23 +544,34 @@ namespace WM908_Assessment {
 			return damageBox.GetComponent(entityID);
 		}
 
+		c_Dash* GetDash(unsigned int entityID) {
+			return dash.GetComponent(entityID);
+		}
+
+		c_Immunity* GetImmunity(unsigned int entityID) const {
+			return immunity.GetComponent(entityID);
+		}
+
 		void DeleteAttackComponent(unsigned int entityID) {
 			melee.DeleteComponent(entityID);
 			projectile.DeleteComponent(entityID);
 			attackProximity.DeleteComponent(entityID);
 			damageBox.DeleteComponent(entityID);
+			immunity.DeleteComponent(entityID);
 		}
 
-		void DeleteAttackComponents(Dataset::Array<unsigned int>* entityID) {
+		void DeleteAttackComponents(Dataset::Array<unsigned int>& entityID) {
 			melee.DeleteComponents(entityID);
 			projectile.DeleteComponents(entityID);
 			attackProximity.DeleteComponents(entityID);
 			damageBox.DeleteComponents(entityID);
+			immunity.DeleteComponents(entityID);
 		}
+
+		void DrawImmunityVFX(unsigned int entityID, s_Position& positionSystem, Renderer* renderer);
 
 		void InstanceMeleeAttack(
 			const unsigned int entityID,
-			const unsigned int datasetSize,
 			c_Melee* meleeAttack,
 			const Vec2 entityPosition,
 			const Direction facing,
@@ -492,7 +582,6 @@ namespace WM908_Assessment {
 			s_Collisions& collisionSystem);
 
 		void InstanceProjectile(
-			const unsigned int datasetSize, 
 			const unsigned int entityID,
 			c_Projectile* projectile,
 			const Vec2 entityPosition,
@@ -515,25 +604,29 @@ namespace WM908_Assessment {
 			s_Sprites& spriteSystem
 		);
 
-		void UpdateMeleeAttack(
-			unsigned int entityID,
-			unsigned int datasetSize,
-			float deltaTime,
-			const s_Position& positionSystem,
-			const s_Collisions& collisionSystem,
-			s_EntityData& entityDataSystem);
-
 		void UpdateDamageBox(
 			unsigned int entityID,
 			float deltaTime,
-			unsigned int datasetSize,
-			const s_Position& positionSystem,
-			const s_Collisions& collisionSystem,
-			s_EntityData& entityDataSystem); 
+			Dataset::Array<unsigned int> collidingEntities,
+			s_EntityData& entityDataSystem,
+			s_Triggers& triggerSystem);
+
+		void UpdateAutoProjectiles(
+			const unsigned int entityID,
+			float deltaTime,
+			EntityManager& entityManager,
+			s_Position& positionSystem,
+			s_Movement& movementSystem,
+			s_EntityData& entityDataSystem,
+			s_Sprites& spriteSystem,
+			s_Collisions& collisionSystem,
+			s_Triggers& triggerSystem);
+
+		void UpdateDash(unsigned int entityID, float deltaTime, s_Movement& movementSystem);
 
 		void UnloadDamageBox(
 			unsigned int entityID,
-			Dataset::Array<unsigned int>* unloadedEntities);
+			Dataset::Array<unsigned int>& unloadedEntities);
 	};
 
 	class s_Directions {
@@ -564,7 +657,7 @@ namespace WM908_Assessment {
 			direction_4.DeleteComponent(entityID);
 		}
 
-		void DeleteDirectionComponents(Dataset::Array<unsigned int>* entityID) {
+		void DeleteDirectionComponents(Dataset::Array<unsigned int>& entityID) {
 			direction_2.DeleteComponents(entityID);
 			direction_4.DeleteComponents(entityID);
 		}
@@ -572,16 +665,36 @@ namespace WM908_Assessment {
 		void UpdateDirection(unsigned int entityID, c_Movement* movement);
 		unsigned int GetAnimationIndex(c_4Direction* direction, c_Movement* movement);
 
+		Vec2 DirectionToVec2(Direction dir);
 		void Update(unsigned int entityID, s_Movement& movementSystem, s_Sprites& spriteSystem);
 	};
 
 	class s_Spawner : public ComponentSystem<c_Spawner> {
 	public:
-		c_Spawner* AddComponent(unsigned int entityID, EnemyTypes enemyType) {
+		c_Spawner* AddComponent(unsigned int entityID, EnemyTypes enemyType, float spawnCooldown = 8.0f) {
 			c_Spawner* component = ComponentSystem<c_Spawner>::AddComponent(entityID);
 			component->type = enemyType;
+			component->spawnCooldown = spawnCooldown;
+
+			std::random_device randomDevice;
+			std::mt19937 rng(randomDevice());
+			std::uniform_real_distribution<float> distribution(0.0f, spawnCooldown);
+
+			component->spawnCooldownCounter = distribution(rng);
 			return component;
 		}
+
+		void Update(
+			unsigned int entityID,
+			float deltaTime,
+			EntityManager& entityManager,
+			s_Position& positionSystem,
+			s_Movement& movementSystem,
+			s_Sprites& spriteSystem,
+			s_Directions& directionSystem,
+			s_Collisions& collisionSystem,
+			s_Attacks& attackSystem,
+			s_EntityData& entityDataSystem);
 
 		void SpawnEnemy(
 			Vec2 spawnPosition,
@@ -606,14 +719,13 @@ namespace WM908_Assessment {
 			s_Attacks& attackSystem,
 			s_EntityData& entityDataSystem,
 			EnemyTypes enemyType,
-			unsigned int count);
+			unsigned int maxCount);
 	};
 
 	class s_PlayerInput : public ComponentSystem<c_PlayerInput > {
 	private:
 		void InstancePrimaryAttack(
 			unsigned int entityID,
-			unsigned int datasetSize,
 			s_Directions& directionSystem,
 			EntityManager& entityManager,
 			s_Position& positionSystem,
@@ -622,10 +734,26 @@ namespace WM908_Assessment {
 			s_Sprites& spriteSystem,
 			s_Collisions& collisionSystem,
 			s_Attacks& attackSystem);
+
+		void InstanceSecondaryAction(
+			unsigned int entityID,
+			s_Movement& movementSystem,
+			s_Directions& directionSystem,
+			s_EntityData& entityDataSystem,
+			s_Attacks& attackSystem);
+
 	public:
+		bool CanInteract(
+			unsigned int entityID,
+			unsigned int datasetSize,
+			s_Position& positionSystem,
+			s_EntityData& entityDataSystem,
+			s_Triggers& triggerSystem,
+			s_Collisions& collisionSystem,
+			unsigned int& closestEntityID);
+
 		void Update(
 			unsigned int entityID, 
-			unsigned int datasetSize,
 			GamesEngineeringBase::Window& window,
 			s_Directions& directionSystem,
 			EntityManager& entityManager,
@@ -634,6 +762,14 @@ namespace WM908_Assessment {
 			s_EntityData& entityDataSystem,
 			s_Sprites& spriteSystem,
 			s_Collisions& collisionSystem,
-			s_Attacks& attackSystem);
+			s_Triggers& triggerSystem,
+			s_Attacks& attackSystem,
+			bool canInteract = false,
+			unsigned int interactEntityID = 0);
+
+		void DrawInteractIndicator(
+			unsigned entityID,
+			Renderer* renderer,
+			s_Position& positionSystem);
 	};
 }

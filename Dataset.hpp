@@ -3,7 +3,6 @@
 
 namespace Dataset {
 	template<typename T>
-	
 	class Array {
 	private:
 		T* data;
@@ -24,24 +23,17 @@ namespace Dataset {
 
 		unsigned int AddToClosestEmptyIndex(const T& value) {
 			for (unsigned int i = 0; i < maxSize; i++) {
-				if (data[i] == T{}) {
-					data[i] = value;
-
-					if (i >= size)
-						size = i + 1;
-
-					return (int)i;
-				}
+				if (data[i] != T{}) continue;
+				data[i] = value;
+				if (i >= size) size = i + 1;
+				return (int)i;
 			}
 			return maxSize;
 		}
 
-		void SetValue(const T& value, unsigned int index) {
-			if (index >= maxSize)
-				return;
-
-			if (index >= size)
-				size = index + 1;
+		void SetValue(const T& value, const unsigned int index) {
+			if (index >= maxSize) return;
+			if (index >= size) size = index + 1;
 
 			data[index] = value;
 		}
@@ -50,22 +42,17 @@ namespace Dataset {
 			if (index >= size)
 				return;
 
+			// Check if is storing pointer
 			if constexpr (std::is_pointer_v<T>) {
 				delete data[index];
 				data[index] = nullptr;
 			}
-			else {
-				data[index] = T{};
-			}
+			else data[index] = T{};
 		}
 
 		bool HasData(const T& value) const {
-			for (unsigned int i = 0; i < size; i++) {
-				if (data[i] == value) {
-					return true;
-				}
-			}
-
+			for (unsigned int i = 0; i < size; i++)
+				if (data[i] == value) return true;
 			return false;
 		}
 
@@ -75,27 +62,47 @@ namespace Dataset {
 		}
 
 		unsigned int GetSize() const { return size; }
-
 		unsigned int GetMaxSize() const { return maxSize; }
 
-		Array(Array<T>&& arrayNew) noexcept : data(arrayNew.data), size(arrayNew.size), maxSize(arrayNew.maxSize) {
-			arrayNew.size = 0;
-			arrayNew.maxSize = 0;
-			arrayNew.data = nullptr;
+		// Move Constructor
+		Array(Array<T>&& array_) noexcept : data(array_.data), size(array_.size), maxSize(array_.maxSize) {
+			array_.size = 0;
+			array_.maxSize = 0;
+			array_.data = nullptr;
 		}
 
-		Array<T>& operator=(Array<T>&& arrayNew) noexcept {
-			if (this != &arrayNew) {
-				delete[] data;
+		// Move Operator
+		Array<T>& operator=(Array<T>&& array_) noexcept {
+			if (this == &array_) return *this;
 
-				size = arrayNew.size;
-				maxSize = arrayNew.maxSize;
-				data = arrayNew.data;
+			delete[] data;
+			size = array_.size;
+			maxSize = array_.maxSize;
+			data = array_.data;
 
-				arrayNew.size = 0;
-				arrayNew.maxSize = 0;
-				arrayNew.data = nullptr;
-			}
+			array_.size = 0;
+			array_.maxSize = 0;
+			array_.data = nullptr;
+
+			return *this;
+		}
+
+		// Copy Constructor
+		Array(const Array<T>& array_) : data(new T[array_.maxSize]()), size(array_.size), maxSize(array_.maxSize) {
+			for (unsigned int i = 0; i < size; i++)
+				data[i] = array_.data[i];
+		}
+
+		// Copy Operator
+		Array<T>& operator=(const Array<T>& array_) {
+			if (this == &array_) return *this;
+
+			delete[] data;
+			size = array_.size;
+			maxSize = array_.maxSize;
+			data = new T[maxSize]();
+			for (unsigned int i = 0; i < size; i++)
+				data[i] = array_.data[i];
 
 			return *this;
 		}
@@ -122,6 +129,10 @@ namespace Dataset {
 			head = tail = nullptr;
 		}
 
+		~Queue() {
+			while (Dequeue());
+		}
+
 		Node<T>* GetHead() {
 			return head;
 		}
@@ -131,14 +142,25 @@ namespace Dataset {
 		}
 
 		void Enqueue(const T& data) {
-			Node<T>* node = new Node<T>;
-
+			Node<T>* node = new Node<T>(data);
 			if (tail == nullptr) {
 				tail = head = node;
-			} else {
+			}
+			else {
 				tail->next = node;
 				tail = node;
 			}
+		}
+
+		bool Dequeue() {
+			if (head == nullptr) return false;
+			Node<T>* n = head;
+			if (head != tail) head = head->next;
+			else head = tail = nullptr;
+
+			delete n;
+
+			return true;
 		}
 
 		bool Dequeue(T& data) {
@@ -153,5 +175,51 @@ namespace Dataset {
 			return true;
 		}
 
+		// Move Constructor
+		Queue(Queue<T>&& queue_) noexcept : head(queue_.head), tail(queue_.tail) {
+			queue_.head = nullptr;
+			queue_.tail = nullptr;
+		}
+
+		// Move Operator
+		Queue<T>& operator=(Queue<T>&& queue_) noexcept {
+			if (this == &queue_) return *this;
+			while (Dequeue());
+
+			head = queue_.head;
+			tail = queue_.tail;
+			queue_.head = nullptr;
+			queue_.tail = nullptr;
+
+			return *this;
+		}
+
+		// Copy Constructor
+		Queue(const Queue<T>& queue_) {
+			head = tail = nullptr;
+
+			Node<T>* node = queue_.head;
+
+			while (node != nullptr) {
+				Enqueue(node->data);
+				node = node->next;
+			}
+		}
+
+		// Copy Operator
+		Queue<T>& operator=(const Queue<T>& queue_) {
+			if (this == &queue_) return *this;
+			while (Dequeue());
+			head = tail = nullptr;
+
+			Node<T>* node = queue_.head;
+
+			while (node != nullptr) {
+				Enqueue(node->data);
+				node = node->next;
+			}
+
+			return *this;
+		}
 	};
 };

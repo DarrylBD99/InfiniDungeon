@@ -2,8 +2,6 @@
 #include "Vector.hpp"
 #include "Dataset.hpp"
 
-#include <string>
-
 namespace WM908_Assessment {
 	
 	enum Direction {
@@ -34,7 +32,7 @@ namespace WM908_Assessment {
 	// Interaction Components
 
 	struct c_PlayerInput {
-		int keyUp = 0, keyDown = 0, keyLeft = 0, keyRight = 0, primaryAttack = 0, secondaryAttack = 0;
+		int keyUp = 0, keyDown = 0, keyLeft = 0, keyRight = 0, primaryAttack = 0, secondaryAttack = 0, interact = 0;
 
 		bool isAttacking = false;
 	};
@@ -69,10 +67,18 @@ namespace WM908_Assessment {
 		Mana = 2
 	};
 
+	struct c_KeyCount {
+		int keyCount = 0;
+	};
+
 	struct c_Collectable {
 		bool isCollected = false;
 
 		CollectableType type = CollectableType::Key;
+	};
+
+	struct c_EndGoal {
+		bool reachedEndGoal = false;
 	};
 
 	struct c_Follow {
@@ -92,7 +98,16 @@ namespace WM908_Assessment {
 		float attackCooldownCounter = attackCooldown;
 	};
 
-	struct c_Savable {
+	struct c_ScoreIncrease {
+		unsigned int scoreCount = 0;
+	};
+
+	struct c_DeathSavable {
+		unsigned int roomID;
+		unsigned int tileIndex;
+	};
+
+	struct c_NoOutsideCamera {
 
 	};
 
@@ -104,9 +119,10 @@ namespace WM908_Assessment {
 
 	struct c_Spawner {
 		EnemyTypes type = EnemyTypes::Slime;
+		unsigned int maxCount = 3;
 
-		float spawnCooldown = 10.0f;
-		float spawnCooldownCounter = spawnCooldown / 0.7f;
+		float spawnCooldown = 8.0f;
+		float spawnCooldownCounter = 0.0f;
 	};
 
 	// Damage Types
@@ -128,6 +144,10 @@ namespace WM908_Assessment {
 	struct c_Projectile {
 		unsigned int collisionMask = 0;
 
+		bool autoFire = false;
+		float autoFireRate = 0.6f;
+		float autoFireCounter = 0.0f;
+
 		unsigned int spritesheetID = 0;
 		Vec2 collisionBoxSize = { 32.0f };
 		Vec2 collisionBoxOffset = {};
@@ -143,10 +163,11 @@ namespace WM908_Assessment {
 	};
 
 	struct c_DamageBox {
-		float damageCount = 1.0f;
+		unsigned int damageCount = 1;
 		bool isOneTime = false;
 		bool isTemporary = false;
 		bool isHit = false;
+		bool isDisabled = false;
 
 		float timeMax = 0.0f;
 		float timeCounter = 0.0f;
@@ -157,27 +178,48 @@ namespace WM908_Assessment {
 		Dataset::Array<unsigned int> damagedEntities{};
 	};
 
+	struct c_Dash {
+		float speed = 300.0f;
+		float oldSpeed = 0.0f;
+		float duration = 0.5f;
+		float counter = 0.0f;
+		unsigned int manaConsume = 5;
+
+		bool isActive = false;
+	};
+
+	struct c_Immunity {
+		static constexpr unsigned int vfxSprite = 20;
+		
+		int maxHits = 10;
+		int hitCount = 0;
+		unsigned int manaConsume = 5;
+	};
+
 	// Triggers
 	struct c_ActiveState {
-		bool isActive = true;
+		unsigned int roomID = 0;
+		unsigned int triggerID = 0;
 
-		unsigned int deactiveState = 0;
+		bool isActive = false;
+
+		unsigned int activeStateSprite = 0;
 	};
 
 	struct c_PressTrigger {
-		Dataset::Array<unsigned int> affectedEntity;
+		unsigned int roomID = 0;
+		unsigned int triggerID = 0;
 	};
 
 	struct c_InteractTrigger {
-		Dataset::Array<unsigned int> affectedEntity;
+		unsigned int roomID = 0;
+		unsigned int triggerID = 0;
+
+		bool requireKey = false;
 	};
 
-	struct c_DeathTrigger {
-		Dataset::Array<unsigned int> affectedEntity;
-	};
-
-	struct c_LinkTrigger {
-		Dataset::Array<unsigned int> affectedEntity;
+	struct c_TriggerKill{
+		bool isDead = false;
 	};
 
 	// Collision Components
@@ -186,7 +228,8 @@ namespace WM908_Assessment {
 	enum CollisionLayer {
 		Wall = 1 << 0,
 		Player = 1 << 1,
-		Enemy = 1 << 2
+		Enemy = 1 << 2,
+		Interactable = 1 << 3
 	};
 
 	struct c_CollisionBox {
@@ -195,6 +238,8 @@ namespace WM908_Assessment {
 
 		Vec2 boxSize = { 0, 0 };
 		Vec2 offset = { 0, 0 };
+
+		Dataset::Array<unsigned int> ignoreEntities{ 0 };
 	};
 
 	//struct c_CollisionCircle {
@@ -269,7 +314,7 @@ namespace WM908_Assessment {
 		unsigned int currentAnimation = 0;
 		unsigned int animationFrameIndex = 0;
 
-		const float secondsPerFrame = 0.1f;
+		const float secondsPerFrame = 0.15f;
 		float timePassed = 0.0f;
 
 		Vec2 offset = { 0, 0 };

@@ -1,13 +1,12 @@
 #pragma once
-#include <string>
 #include "GamesEngineeringBase.h"
 #include "Component.hpp"
 
 namespace WM908_Assessment {
 	class Renderer {
 	private:
-		const std::string SPRITESHEET_FILE = "res/Spritesheet.bin";
-		const std::string PALETTE_FILE = "res/Palette.png";
+		const char* SPRITESHEET_FILE = "res/Spritesheet.bin";
+		const char* PALETTE_FILE = "res/Palette.png";
 		Vec2 cameraWorldPosition;
 
 		GamesEngineeringBase::Window& canvas;
@@ -17,6 +16,7 @@ namespace WM908_Assessment {
 		uint8_t* spritesheetData = nullptr;
 
 		unsigned int gridHeight, gridWidth;
+		uint8_t colorPaletteSize = 0;
 	public:
 		const unsigned int
 			cameraWidth = 383,
@@ -29,11 +29,12 @@ namespace WM908_Assessment {
 		~Renderer();
 
 		void DrawCameraBackground(unsigned int colorPaletteIndex);
+		void DrawSquare(unsigned int colorPaletteIndex, const unsigned int& screenTop, const unsigned int& screenBottom, const unsigned int& screenLeft, const unsigned int& screenRight);
 
 		void DrawFromSpritesheetIDScreenPosition(
 			const Vec2& screenPosition,
 			const unsigned int gridID,
-			const Vec2& offset,
+			const Vec2& offset = { 0.0f },
 			Direction facing = Direction::Down,
 			bool flipH = false,
 			bool flipV = false,
@@ -49,7 +50,7 @@ namespace WM908_Assessment {
 			bool flipV = false
 		);
 
-		void DrawString(const Vec2& screenPosition, const unsigned char* value);
+		void DrawString(const Vec2& screenPosition, const char* value);
 
 		bool IsWorldPositionWithinCamera(const Vec2& worldPosition) const;
 		bool IsScreenPositionWithinCamera(const Vec2& screenPosition) const;

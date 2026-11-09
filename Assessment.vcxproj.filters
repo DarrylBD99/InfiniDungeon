@@ -16,6 +16,12 @@
     <Filter Include="Header Files\ECS">
       <UniqueIdentifier>{304b634c-fdb8-4ad1-b303-8fade03786f0}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\Maps">
+      <UniqueIdentifier>{10e0d71a-96a0-480b-bdae-72a4d49a716e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\SFX">
+      <UniqueIdentifier>{54636263-19fa-4295-8d32-7389f94caeb1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Base.cpp">
@@ -40,6 +46,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Decoder.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SaveSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SoundManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -71,18 +83,77 @@
     <ClInclude Include="Decoder.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SaveSystem.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SoundManager.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <Media Include="res\sfx\enemy_hit.wav">
+      <Filter>Resource Files\SFX</Filter>
+    </Media>
+    <Media Include="res\sfx\menu_select.wav">
+      <Filter>Resource Files\SFX</Filter>
+    </Media>
+    <Media Include="res\sfx\player_select.wav">
+      <Filter>Resource Files\SFX</Filter>
+    </Media>
+    <Media Include="res\sfx\player_walk.wav">
+      <Filter>Resource Files\SFX</Filter>
+    </Media>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\Palette.png">
+      <Filter>Resource Files</Filter>
+    </Image>
     <Image Include="res\Spritesheet.png">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="res\maps\Room_0.txt">
+    <None Include="res\Spritesheet.ase">
       <Filter>Resource Files</Filter>
-    </Text>
-    <Text Include="res\maps\Room_1.txt">
+    </None>
+    <None Include="res\Spritesheet.bin">
       <Filter>Resource Files</Filter>
-    </Text>
+    </None>
+    <None Include="res\maps\Trigger_0.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Trigger_1.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Trigger_2.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Trigger_3.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Trigger_4.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Trigger_5.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Room_0.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Room_1.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Room_2.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Room_3.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Room_4.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
+    <None Include="res\maps\Room_5.bin">
+      <Filter>Resource Files\Maps</Filter>
+    </None>
   </ItemGroup>
 </Project>

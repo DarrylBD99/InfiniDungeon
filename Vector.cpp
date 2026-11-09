@@ -2,6 +2,14 @@
 #include <numbers>
 #include <cmath>
 
+Vec2 round(const Vec2& value)
+{
+	return Vec2{
+		std::round(value.GetX()),
+		std::round(value.GetY())
+	};
+}
+
 float Vec2::GetX() const {
 	return x;
 }

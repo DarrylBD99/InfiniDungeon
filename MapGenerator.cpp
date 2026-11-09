@@ -1,8 +1,10 @@
 #include "MapGenerator.hpp"
+#include "SaveSystem.hpp"
+#include <format>
 
 namespace WM908_Assessment {
 
-	Room::Room(uint8_t roomType, int posX_, int posY_) : posX(posX_), posY(posY_) {
+	Room::Room(unsigned int roomID_, int posX_, int posY_, uint8_t roomType) : roomID(roomID_), posX(posX_), posY(posY_) {
 		FetchRoomData(roomType);
 
 		worldWidth = Renderer::GRID_SIZE * width;
@@ -11,6 +13,13 @@ namespace WM908_Assessment {
 		// Create Map
 		worldPos = { (float)posX * worldWidth, (float)posY * worldHeight };
 		tileEntities = Dataset::Array<Entity*>(width * height);
+	}
+
+	Room::Room(unsigned int roomID_, int posX_, int posY_) : Room(roomID_, posX_, posY_, FetchRoomType(roomID_)) { }
+
+	Room::~Room() {
+		delete[] tileIDs;
+		delete[] triggerIDs;
 	}
 
 	// Players can look over at the corners and may find an empty void until
@@ -30,10 +39,34 @@ namespace WM908_Assessment {
 	//	if (bottomRoom != exception) bottomRoom->FreeneighborRooms(this);
 	//}
 
-	void Room::FetchRoomData(uint8_t roomIndex) {
-		tileIDs = Decoder::ReadRoomData((ROOM_FILE_DIRECTORY + std::to_string(roomIndex) + FILE_TYPE)
-			, width, height);
+	void Room::SetVisited() {
+		if (visited) return;
 
+		visited = true;
+		saveSystem.score += 50;
+		saveSystem.SetVisited(roomID);
+	}
+
+	uint8_t Room::FetchRoomType(unsigned int roomID_) {
+		std::seed_seq seedSequence{ roomID_ };
+		std::mt19937 rng(seedSequence);
+		std::uniform_int_distribution<unsigned int> distribution(1, 5);
+
+		return (uint8_t)distribution(rng);
+	}
+
+	void Room::FetchRoomData(uint8_t roomIndex) {
+		const std::string roomData = std::format(ROOM_FILE_DIRECTORY, roomIndex);
+		const std::string triggerData = std::format(TRIGGER_FILE_DIRECTORY, roomIndex);
+
+		uint8_t triggerCount = 0;
+		tileIDs = Decoder::ReadRoomData(roomData.c_str(), width, height);
+		triggerIDs = Decoder::ReadRoomTriggerData(triggerData.c_str(), triggerCount);
+		if (triggerCount > 0)
+			triggerState = Dataset::Array<bool>(triggerCount + 1);
+
+		if (saveSystem.GetMapData(roomID, visited, triggerState, tileIDs)) return;
+		saveSystem.CreateMapData(roomID, triggerState);
 	}
 
 	bool Room::IsMapVisible(const Renderer* renderer) const {
@@ -93,9 +126,23 @@ namespace WM908_Assessment {
 		//std::cout << "]" << std::endl;
 	}
 
-	Entity* Room::CreateTileEntity(unsigned int tileID, int worldPositionX, int worldPositionY, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
-		if (tileID > 14) return nullptr; // There exists only 15 types of map tiles
-		if (tileID == 14) tileID = 2; // Assumes entrance tile isn't open, set to wall
+	Entity* Room::CreateTileEntity(
+		unsigned int tileID,
+		unsigned int triggerID,
+		unsigned int index,
+		int worldPositionX,
+		int worldPositionY,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem,
+		s_EntityData& entityDataSystem,
+		s_Triggers& triggerSystem,
+		s_Spawner& spawnerSystem,
+		s_Attacks& attackSystem)
+	{
+		if (tileID > 15) return nullptr; // There exists only 15 types of map tiles
+		if (tileID == 15) tileID = 2; // Assumes entrance tile isn't open, set to wall
 
 		unsigned int entityID = entityManager.AppendEntity();
 		Entity* entity = entityManager.GetEntityData(entityID);
@@ -115,34 +162,65 @@ namespace WM908_Assessment {
 
 		// Add active state component to chests, pressure pads, and traps
 		// They are placed in sequential order in spritesheetID for seamless implementation
-		if (tileID >= 3 && tileID <= 6) {
-			triggerSystem.AddActiveState(entityID, tileID + 12);
-
+		if (tileID >= 3 && tileID <= 7) {
 			// Individual interactable properties
 			switch (tileID)
 			{
-				// Pressure Pads
-			case 3:
-				// Reduce hitbox size
+			// Pressure Pads
+			case 3: {
 				collisionBox->boxSize = { 24.0f, 14.0f };
 				collisionBox->offset = { 4.0f, 9.0f };
+				collisionBox->collisionLayer = 0;
+				collisionBox->collisionMask = CollisionLayer::Player;
+				triggerSystem.AddActiveState(entityID, roomID, triggerID, tileID + 12, triggerState.Get(triggerID));
+				triggerSystem.AddPressTrigger(entityID, roomID, triggerID);
 				break;
+			}
+			// Electric Filled Vent
+			case 4: {
+				collisionBox->collisionLayer = 0;
+				collisionBox->collisionMask = CollisionLayer::Player;
+				c_DamageBox* damageBox = attackSystem.AddDamageBox(entityID, 2);
+				damageBox->hitEnemyBuffer = 0.4f;
+				damageBox->isDisabled = triggerState.Get(triggerID);
+				triggerSystem.AddActiveState(entityID, roomID, triggerID, tileID + 12, triggerState.Get(triggerID));
+				break;
+			}
+			// Arrow Walls
+			case 5: {
+				c_Projectile* projectile = attackSystem.AddProjectile(entityID, 27, 180.0f, false, CollisionLayer::Wall | CollisionLayer::Player);
+				projectile->autoFire = true;
+				projectile->autoFireRate = 1.2f;
+				triggerSystem.AddActiveState(entityID, roomID, triggerID, tileID + 12, triggerState.Get(triggerID));
+				break;
+			}
+			// Door
+			case 7: {
+				collisionBox->collisionLayer |= CollisionLayer::Interactable;
+				triggerSystem.AddTriggerKill(entityID);
+				entityDataSystem.AddDeathSavable(entityID, roomID, index);
+				
+				c_InteractTrigger* interact = triggerSystem.AddInteractTrigger(entityID, roomID, index);
+				interact->requireKey = true;
+				break;
+			}
 			default:
 				break;
 			}
 		}
-
-		// Set Sprite Layer of spawners and collectibles to 1 and add another tile entity below
-		// Spawners are given a tile below as they have health and can be destroyed by player
+		// Initially set Sprite Layer of spawners and collectibles to 1 for a tile below
+		// But realistically has no purpose as player's wont have a layer issue with it.
+		// All it does is clutter Entity System
 		else if (tileID >= 8 && tileID <= 13) {
-			sprite->drawLayer = 1;
-			unsigned int floorEntityID = entityManager.AppendEntity();
-			positionSystem.AddComponent(floorEntityID, { worldPositionX, worldPositionY });
-			spriteSystem.AddSprite(floorEntityID, 0, 0);
+			//sprite->drawLayer = 1;
+			//unsigned int floorEntityID = entityManager.AppendEntity();
+			//positionSystem.AddComponent(floorEntityID, { worldPositionX, worldPositionY });
+			//spriteSystem.AddSprite(floorEntityID, 0, 0);
 
 			// Collectibles
 			if (tileID >= 11) {
 				entityDataSystem.AddCollectable(entityID, CollectableType(tileID - 11));
+				entityDataSystem.AddDeathSavable(entityID, roomID, index);
 				collisionBox->boxSize = { 22.0f };
 				collisionBox->offset = { 5.0f };
 				collisionBox->collisionLayer = 0;
@@ -152,15 +230,34 @@ namespace WM908_Assessment {
 			else { // Spawners
 				entityDataSystem.AddHealth(entityID, 5);
 				collisionBox->collisionLayer = collisionBox->collisionLayer | CollisionLayer::Enemy;
+				spawnerSystem.AddComponent(entityID, EnemyTypes(tileID - 8));
+				entityDataSystem.AddDeathSavable(entityID, roomID, index);
 			}
 
-			return entityManager.GetEntityData(floorEntityID);
+			//return entityManager.GetEntityData(floorEntityID);
+		}
+
+		// Staircase to pass demo level
+		else if (tileID == 14) {
+			collisionBox->collisionLayer |= CollisionLayer::Interactable;
+			triggerSystem.AddInteractTrigger(entityID, roomID, index);
+			triggerSystem.AddEndGoal(entityID);
 		}
 
 		return entity;
 	}
 
-	void Room::CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
+	void Room::CreateVisibleTiles(
+		const Renderer* renderer,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem,
+		s_EntityData& entityDataSystem,
+		s_Triggers& triggerSystem,
+		s_Spawner& spawnerSystem,
+		s_Attacks& attackSystem)
+	{
 		if (!IsMapVisible(renderer)) return;
 
 		Vec2 cameraTopLeft, cameraBottomRight;
@@ -177,7 +274,20 @@ namespace WM908_Assessment {
 				unsigned int idx = tileY * width + tileX;
 				if (tileEntities.Get(idx) != nullptr) continue;
 
-				Entity* entity = CreateTileEntity(tileIDs[(tileY * width) + tileX], worldPositionX, worldPositionY, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+				Entity* entity = CreateTileEntity(
+					tileIDs[idx],
+					triggerIDs[idx],
+					idx,
+					worldPositionX,
+					worldPositionY,
+					entityManager,
+					positionSystem,
+					spriteSystem,
+					collisionSystem,
+					entityDataSystem,
+					triggerSystem,
+					spawnerSystem,
+					attackSystem);
 				tileEntities.SetValue(entity, idx);
 			}
 		}
@@ -217,26 +327,44 @@ namespace WM908_Assessment {
 		}
 		}
 
-		// Tile ID 14 is entrance tile
+		// Tile ID 15 is entrance tile
 		for (int i = 0; i < loopCount; i++) {
-			if (*tileIDs_ == 14) *tileIDs_ = 0;
+			if (*tileIDs_ == 15) *tileIDs_ = 0;
 
 			tileIDs_ += dataAdvance;
 		}
 	}
 
+	void Room::SetTile(unsigned int index, uint8_t tileID) {
+		tileIDs[index] = tileID;
+	}
+
+	void Room::SetTrigger(unsigned int triggerID, bool triggerState_, s_Triggers& triggerSystem) {
+		triggerState.SetValue(triggerState_, triggerID);
+		saveSystem.ChangeTriggerState(roomID, triggerID, triggerState_);
+
+		for (unsigned int i = 0; i < tileEntities.GetSize(); i++) {
+			if (tileEntities.Get(i) == nullptr) continue;
+			if (triggerIDs[i] != triggerID) continue;
+			
+			c_ActiveState* activeState = triggerSystem.GetActiveState(tileEntities.Get(i)->GetEntityID());
+			if (activeState == nullptr) continue;
+			activeState->isActive = triggerState_;
+		}
+	}
+
 	bool Room::IsPlayerInsideRoom(const Vec2 playerPos) const {
-		return playerPos.GetX() >= worldPos.GetX() && playerPos.GetX() + Renderer::GRID_SIZE < worldPos.GetX() + worldWidth
-			&& playerPos.GetY() >= worldPos.GetY() && playerPos.GetY() + Renderer::GRID_SIZE < worldPos.GetY() + worldHeight;
+		return playerPos.GetX() >= worldPos.GetX() && playerPos.GetX() < worldPos.GetX() + worldWidth
+			&& playerPos.GetY() >= worldPos.GetY() && playerPos.GetY() < worldPos.GetY() + worldHeight;
 	}
 
 	// Map Data is dependent on x and y position as well as world seed
-	uint8_t MapGenerator::GetRoomTemplate(int posX, int posY) {
+	unsigned int MapGenerator::GetRoomID(int posX, int posY) {
 		std::seed_seq seedSequence{ worldSeed, posX, posY };
 		std::mt19937 rng(seedSequence);
-		std::uniform_int_distribution<unsigned int> distribution(1, 4);
+		std::uniform_int_distribution<unsigned int> distribution(0, UINT_MAX);
 
-		return (uint8_t)distribution(rng);
+		return distribution(rng);
 	}
 
 	// Doesn't load room if no room is inaccessible
@@ -260,6 +388,7 @@ namespace WM908_Assessment {
 	uint8_t MapGenerator::GetOpenedEntrances(int posX, int posY) {
 		if (!CanGenerateEntrances(posX, posY)) return 0;
 
+
 		std::seed_seq seedSequence{ worldSeed, posX, posY };
 		std::mt19937 rng(seedSequence);
 		std::uniform_int_distribution<unsigned int> distribution(0b0000, 0b1111);
@@ -274,25 +403,10 @@ namespace WM908_Assessment {
 
 	// Free neighbor Rooms as they are out of bounds and (for the most part) shouldn't be seen
 	void MapGenerator::FreeneighborRooms(Room* exception) {
-		if (leftRoom != exception) {
-			delete leftRoom;
-			leftRoom = nullptr;
-		}
-
-		if (rightRoom != exception) {
-			delete rightRoom;
-			rightRoom = nullptr;
-		}
-
-		if (topRoom != exception) {
-			delete topRoom;
-			topRoom = nullptr;
-		}
-
-		if (bottomRoom != exception) {
-			delete bottomRoom;
-			bottomRoom = nullptr;
-		}
+		if (leftRoom.get() != exception) leftRoom.reset();
+		if (rightRoom.get() != exception) rightRoom.reset();
+		if (topRoom.get() != exception) topRoom.reset();
+		if (bottomRoom.get() != exception) bottomRoom.reset();
 	}
 
 	MapGenerator::MapGenerator() {
@@ -307,67 +421,66 @@ namespace WM908_Assessment {
 		worldSeed = seed_;
 	}
 
-	MapGenerator::~MapGenerator() {}
-
-	void MapGenerator::StartInfiniteWorldGeneration() {
-		currentRoom = GenerateRoom(0, 0);
-		GenerateneighboringRooms(0, 0);
+	void MapGenerator::StartInfiniteWorldGeneration(int posX, int posY) {
+		currentRoom.reset(GenerateRoom(posX, posY));
+		GenerateNeighboringRooms(posX, posY);
 	}
 
 	void MapGenerator::Update(const Vec2& playerPos) {
 		if (currentRoom == nullptr) return;
+		currentRoom->SetVisited();
+		//std::cout << std::to_string(currentRoom->GetRoomID()) << std::endl;
+
 		if (currentRoom->IsPlayerInsideRoom(playerPos)) return;
 
 		Room* newRoom = nullptr;
+		Room* oldRoomPtr = nullptr;
 
 		// Check which room player is inside
 		if (bottomRoom != nullptr && bottomRoom->IsPlayerInsideRoom(playerPos)) {
-			newRoom = bottomRoom;
-			bottomRoom = nullptr;
-			topRoom = currentRoom;
+			newRoom = bottomRoom.get();
+			oldRoomPtr = currentRoom.get();
+			topRoom = std::move(currentRoom);
+			currentRoom = std::move(bottomRoom);
 		}
 		else if (rightRoom != nullptr && rightRoom->IsPlayerInsideRoom(playerPos)) {
-			newRoom = rightRoom;
-			rightRoom = nullptr;
-			leftRoom = currentRoom;
+			newRoom = rightRoom.get();
+			oldRoomPtr = currentRoom.get();
+			leftRoom = std::move(currentRoom);
+			currentRoom = std::move(rightRoom);
 		}
 		else if (leftRoom != nullptr && leftRoom->IsPlayerInsideRoom(playerPos)) {
-			newRoom = leftRoom;
-			leftRoom = nullptr;
-			rightRoom = currentRoom;
+			newRoom = leftRoom.get();
+			oldRoomPtr = currentRoom.get();
+			rightRoom = std::move(currentRoom);
+			currentRoom = std::move(leftRoom);
 		}
 		else if (topRoom != nullptr && topRoom->IsPlayerInsideRoom(playerPos)) {
-			newRoom = topRoom;
-			topRoom = nullptr;
-			bottomRoom = currentRoom;
+			newRoom = topRoom.get();
+			oldRoomPtr = currentRoom.get();
+			bottomRoom = std::move(currentRoom);
+			currentRoom = std::move(topRoom);
 		}
-
-		// Should be impossible to reach, but it's here just in case some miracle happens
-		if (newRoom == nullptr || newRoom == currentRoom) {
-			assert(true);
-			return;
-		}
-
-		FreeneighborRooms(currentRoom);
-		currentRoom = newRoom;
-
-		GenerateneighboringRooms(currentRoom->GetX(), currentRoom->GetY());
+		if (newRoom == nullptr) return;
+		FreeneighborRooms(oldRoomPtr);
+		GenerateNeighboringRooms(currentRoom->GetX(), currentRoom->GetY());
+		saveSystem.SetCurrentMapPos(currentRoom->GetX(), currentRoom->GetY());
 	}
 
 	void MapGenerator::GenerateDemoRoom() {
-		currentRoom = new Room(0, 0, 0);
+		currentRoom = std::make_unique<Room>(0, 0, 0, 0);
 	}
 
 	Room* MapGenerator::GenerateRoom(int posX, int posY) {
 		if (!ShouldRoomGenerate(posX, posY)) return nullptr;
-		return new Room(GetRoomTemplate(posX, posY), posX, posY);
+		return new Room(GetRoomID(posX, posY), posX, posY);
 	}
 
-	void MapGenerator::GenerateneighboringRooms(int posX, int posY) {
-		if (bottomRoom == nullptr) bottomRoom = GenerateRoom(posX, posY + 1);
-		if (rightRoom == nullptr) rightRoom = GenerateRoom(posX + 1, posY);
-		if (leftRoom == nullptr) leftRoom = GenerateRoom(posX - 1, posY);
-		if (topRoom == nullptr) topRoom = GenerateRoom(posX, posY - 1);
+	void MapGenerator::GenerateNeighboringRooms(int posX, int posY) {
+		if (bottomRoom == nullptr) bottomRoom.reset(GenerateRoom(posX, posY + 1));
+		if (rightRoom == nullptr) rightRoom.reset(GenerateRoom(posX + 1, posY));
+		if (leftRoom == nullptr) leftRoom.reset(GenerateRoom(posX - 1, posY));
+		if (topRoom == nullptr) topRoom.reset(GenerateRoom(posX, posY - 1));
 
 		uint8_t entrances = GetOpenedEntrances(posX, posY);
 		if (entrances == 0) {
@@ -407,14 +520,34 @@ namespace WM908_Assessment {
 		if (topRoom != nullptr) topRoom->UnloadTiles(unloadedEntities);
 	}
 
-	void MapGenerator::CreateVisibleTiles(const Renderer* renderer, EntityManager& entityManager, s_Position& positionSystem, s_Sprites& spriteSystem, s_Collisions& collisionSystem, s_EntityData& entityDataSystem, s_Triggers& triggerSystem) {
+	Room* MapGenerator::GetRoomWithID(unsigned int roomID) const {
+		if (currentRoom != nullptr && currentRoom->GetRoomID() == roomID) return currentRoom.get();
+		if (bottomRoom != nullptr && bottomRoom->GetRoomID() == roomID) return bottomRoom.get();
+		if (rightRoom != nullptr && rightRoom->GetRoomID() == roomID) return rightRoom.get();
+		if (leftRoom != nullptr && leftRoom->GetRoomID() == roomID) return leftRoom.get();
+		if (topRoom != nullptr && topRoom->GetRoomID() == roomID) return topRoom.get();
+		
+		return nullptr;
+	}
+
+	void MapGenerator::CreateVisibleTiles(
+		const Renderer* renderer,
+		EntityManager& entityManager,
+		s_Position& positionSystem,
+		s_Sprites& spriteSystem,
+		s_Collisions& collisionSystem,
+		s_EntityData& entityDataSystem,
+		s_Triggers& triggerSystem,
+		s_Spawner& spawnerSystem,
+		s_Attacks& attackSystem)
+	{
 		Vec2 cameraTopLeft, cameraBottomRight;
 		renderer->GetCameraCorners(cameraTopLeft, cameraBottomRight);
 
-		if (currentRoom != nullptr) currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-		if (bottomRoom != nullptr) bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-		if (rightRoom != nullptr) rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-		if (leftRoom != nullptr) leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
-		if (topRoom != nullptr) topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem);
+		if (currentRoom != nullptr) currentRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem, spawnerSystem, attackSystem);
+		if (bottomRoom != nullptr) bottomRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem, spawnerSystem, attackSystem);
+		if (rightRoom != nullptr) rightRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem, spawnerSystem, attackSystem);
+		if (leftRoom != nullptr) leftRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem, spawnerSystem, attackSystem);
+		if (topRoom != nullptr) topRoom->CreateVisibleTiles(renderer, entityManager, positionSystem, spriteSystem, collisionSystem, entityDataSystem, triggerSystem, spawnerSystem, attackSystem);
 	}
 }

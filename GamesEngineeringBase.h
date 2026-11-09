@@ -998,7 +998,7 @@ namespace GamesEngineeringBase
 		}
 
 		// Move constructor
-		Image(Image&& other)
+		Image(Image&& other) noexcept
 		{
 			width = other.width;
 			height = other.height;
@@ -1011,7 +1011,7 @@ namespace GamesEngineeringBase
 		}
 
 		// Move assignment
-		Image& operator=(Image&& other)
+		Image& operator=(Image&& other) noexcept
 		{
 			if (this != &other)
 			{
@@ -1120,10 +1120,10 @@ namespace GamesEngineeringBase
 
 		// Returns a pointer to the pixel data at (x, y)
 		// Note, the bounds are handled via clamping
-		unsigned char* at(const unsigned int x, const unsigned int y) const
-		{
-			return &data[((std::min(y, height - 1) * width) + std::min(x, width - 1)) * channels];
-		}
+		//unsigned char* at(const unsigned int x, const unsigned int y) const
+		//{
+		//	return &data[((std::min(y, height - 1) * width) + std::min(x, width - 1)) * channels];
+		//}
 
 		// Returns the alpha value of the pixel at (x, y)
 		// Note, the bounds are handled via clamping

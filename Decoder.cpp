@@ -2,7 +2,6 @@
 
 #include <bit>
 #include <fstream>
-#include <iostream>
 
 namespace Decoder {
     int countValueBits(unsigned int n) {
@@ -19,9 +18,39 @@ namespace Decoder {
         return (1u << bits) - 1;
     }
 
-    uint8_t* ReadSpritesheetData(const std::string& filePath, uint16_t& width, uint16_t& height, uint8_t**& colorPalette) {
+    uint8_t* ReadRLEFile(uint8_t indexCount, uint16_t width, uint16_t height, std::ifstream& file) {
+        if (!file.is_open()) return nullptr;
+        uint8_t indexBitCount = countValueBits(indexCount - 1);
+        uint8_t* data = new uint8_t[height * width]{};
+        uint8_t* dataPtr = &data[0];
+
+        uint8_t maxCount = getMaxValue(8 - indexBitCount);
+        unsigned int pixelIndex = 0;
+
+        while (true) {
+            uint8_t data = 0;
+            if (!file.read(reinterpret_cast<char*>(&data), sizeof(uint8_t))) break;
+
+            uint8_t count = ((data >> indexBitCount) & maxCount) + 1;
+            uint8_t colorIndex = data & getMaxValue(indexBitCount);
+
+            if (colorIndex >= indexCount || pixelIndex + count > (width * height)) {
+                break;
+            }
+
+            for (uint8_t i = 0; i < count; i++) {
+                *dataPtr = colorIndex;
+                dataPtr++;
+                pixelIndex++;
+            }
+        }
+
+        file.close();
+        return data;
+    }
+
+    uint8_t* ReadSpritesheetData(const char* filePath, uint16_t& width, uint16_t& height, uint8_t**& colorPalette, uint8_t& colorPaletteSize) {
         std::ifstream spritesheet(filePath, std::ios::binary);
-        uint8_t colorPaletteSize = 0;
 
         // Read Header
         spritesheet.read(reinterpret_cast<char*>(&width), sizeof(uint16_t));
@@ -41,12 +70,14 @@ namespace Decoder {
             colorPalettePtr++;
         }
 
-        // Count how many bits total (should be 3 if color palette count is 8)
-        uint8_t paletteBitCount = countValueBits(colorPaletteSize - 1);
-        uint8_t* spritesheetData = new uint8_t[height * width]{};
-        uint8_t* spritesheetDataPtr = &spritesheetData[0];
+        return ReadRLEFile(colorPaletteSize, width, height, spritesheet);
 
         // Packed Bit System (Old)
+        // Count how many bits total (should be 3 if color palette count is 8)
+        //uint8_t paletteBitCount = countValueBits(colorPaletteSize - 1);
+        //uint8_t* spritesheetData = new uint8_t[height * width]{};
+        //uint8_t* spritesheetDataPtr = &spritesheetData[0];
+
         //int totalPixels = width * height;
         //int totalBits = totalPixels * paletteBitCount;
         //int totalBytes = (totalBits + 7) / 8;
@@ -70,48 +101,50 @@ namespace Decoder {
 
         //delete[] packedData;
 
-        uint8_t maxCount = getMaxValue(8 - paletteBitCount);
-        unsigned int pixelIndex = 0;
+        //uint8_t maxCount = getMaxValue(8 - paletteBitCount);
+        //unsigned int pixelIndex = 0;
 
-        while (true) {
-            uint8_t data;
-            if (!spritesheet.read(reinterpret_cast<char*>(&data), sizeof(uint8_t))) break;
-            
-            uint8_t count = ((data >> paletteBitCount) & maxCount) + 1;
-            uint8_t colorIndex = data & getMaxValue(paletteBitCount);
+        //while (true) {
+        //    uint8_t data = 0;
+        //    if (!spritesheet.read(reinterpret_cast<char*>(&data), sizeof(uint8_t))) break;
+        //    
+        //    uint8_t count = ((data >> paletteBitCount) & maxCount) + 1;
+        //    uint8_t colorIndex = data & getMaxValue(paletteBitCount);
 
-            if (colorIndex >= colorPaletteSize || pixelIndex + count > (width * height)) {
-                break;
-            }
+        //    if (colorIndex >= colorPaletteSize || pixelIndex + count > (width * height)) {
+        //        break;
+        //    }
 
-            for (uint8_t i = 0; i < count; i++) {
-                *spritesheetDataPtr = colorIndex;
-                spritesheetDataPtr++;
-                pixelIndex++;
-            }
-        }
+        //    for (uint8_t i = 0; i < count; i++) {
+        //        *spritesheetDataPtr = colorIndex;
+        //        spritesheetDataPtr++;
+        //        pixelIndex++;
+        //    }
+        //}
 
-        spritesheet.close();
-        return spritesheetData;
+        //spritesheet.close();
+        //return spritesheetData;
     }
 
-    uint8_t* ReadRoomData(const std::string& filePath, uint8_t& width, uint8_t& height) {
-        std::ifstream file(filePath);
+    uint8_t* ReadRoomData(const char* filePath, uint8_t& width, uint8_t& height) {
+        std::ifstream room(filePath, std::ios::binary);
 
-        unsigned int w, h;
+        // Read Header
+        room.read(reinterpret_cast<char*>(&width), sizeof(uint8_t));
+        room.read(reinterpret_cast<char*>(&height), sizeof(uint8_t));
 
-        file >> w >> h;
+        return ReadRLEFile(16, width, height, room);
+    }
 
-        width = (uint8_t)w;
-        height = (uint8_t)h;
+    uint8_t* ReadRoomTriggerData(const char* filePath, uint8_t& triggerCount) {
+        std::ifstream room(filePath, std::ios::binary);
 
-        uint8_t* tileIDs = new uint8_t[width * height];
-        for (unsigned int i = 0; i < (unsigned int)(width * height); i++) {
-            unsigned int tileID;
-            file >> tileID;
-            tileIDs[i] = (uint8_t)tileID;
-        }
+        uint8_t width, height;
+        // Read Header
+        room.read(reinterpret_cast<char*>(&width), sizeof(uint8_t));
+        room.read(reinterpret_cast<char*>(&height), sizeof(uint8_t));
+        room.read(reinterpret_cast<char*>(&triggerCount), sizeof(uint8_t));
 
-        return tileIDs;
+        return ReadRLEFile(triggerCount + 1, width, height, room);
     }
 }
